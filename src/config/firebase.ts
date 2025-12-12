@@ -4,14 +4,14 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBUI3hD_5Unp6Du6gVU70Y2UP4dLfp8GYk",
-  authDomain: "notifications-5855e.firebaseapp.com",
-  databaseURL: "https://notifications-5855e-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "notifications-5855e",
-  storageBucket: "notifications-5855e.firebasestorage.app",
-  messagingSenderId: "265570766524",
-  appId: "1:265570766524:web:b1cdb4065a066b65584ab9",
-  measurementId: "G-KFPQCN7H25"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL ,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase

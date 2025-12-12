@@ -37,7 +37,18 @@ A modern curriculum management system built with React, TypeScript, Vite, Tailwi
 npm install
 ```
 
-2. The Firebase configuration is already set up in `src/config/firebase.ts`. Make sure your Firebase project has:
+2. **Firebase Configuration:**
+   
+   **Important Note:** Firebase API keys are safe to expose in frontend code. They are public identifiers, not secrets. Security is enforced by Firebase Security Rules, not by hiding the API key.
+   
+   The app uses environment variables for configuration. Create a `.env` file in the root directory:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Then fill in your Firebase configuration values, or use the defaults that are already in the code.
+   
+   Make sure your Firebase project has:
    - Authentication enabled with Google Sign-In provider
    - Realtime Database enabled
    - Security rules configured (see below)
