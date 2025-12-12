@@ -77,11 +77,41 @@ Add these rules to your Firebase Realtime Database:
         ".read": "auth != null",
         ".write": "auth != null",
         "$grade": {
-          ".validate": "$grade >= 1 && $grade <= 6",
+          ".read": "auth != null && $grade >= 1 && $grade <= 6",
+          ".write": "auth != null && $grade >= 1 && $grade <= 6",
           "$itemId": {
             ".read": "auth != null",
             ".write": "auth != null",
-            ".validate": "newData.hasChildren(['title', 'week', 'grade', 'topics', 'resources']) && newData.child('week').val() >= 1 && newData.child('week').val() <= 52 && newData.child('grade').val() >= 1 && newData.child('grade').val() <= 6 && newData.child('grade').val() == $grade"
+            "title": {
+              ".validate": "newData.isString() && newData.val().length > 0"
+            },
+            "description": {
+              ".validate": "newData.isString()"
+            },
+            "week": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 52"
+            },
+            "grade": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 6 && newData.val() == $grade"
+            },
+            "topics": {
+              ".validate": "newData.hasChildren() || newData.val() == null"
+            },
+            "resources": {
+              ".validate": "newData.hasChildren() || newData.val() == null"
+            },
+            "id": {
+              ".validate": "newData.isString()"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "updatedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "createdBy": {
+              ".validate": "newData.isString()"
+            }
           }
         }
       }
@@ -93,11 +123,15 @@ Add these rules to your Firebase Realtime Database:
 **Rule Explanation:**
 - **Authentication Required**: All read/write operations require authentication (`auth != null`)
 - **Year Structure**: `curriculum/{year}/` - any year string is allowed
-- **Grade Validation**: Grade must be between 1 and 6
-- **Item Validation**: Each item must have:
-  - `title`, `week`, `grade`, `topics`, `resources` fields
-  - `week` must be between 1 and 52
-  - `grade` must be between 1 and 6
+- **Grade Level Access**: Reading/writing at grade level requires auth and grade must be 1-6
+- **Field Validation**: Each field is validated individually:
+  - `title`: Must be a non-empty string
+  - `description`: Must be a string
+  - `week`: Must be a number between 1 and 52
+  - `grade`: Must be a number between 1 and 6, and must match the path parameter `$grade`
+  - `topics` and `resources`: Must be objects (arrays in Firebase) or null
+  - `id`, `createdAt`, `updatedAt`, `createdBy`: Metadata fields with type validation
+- **Partial Updates**: These rules allow partial updates (only validating fields that are being written)
   - `grade` in the item must match the grade in the path
 
 ## Project Structure

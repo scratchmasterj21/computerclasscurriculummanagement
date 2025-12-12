@@ -12,6 +12,7 @@ import { BulkActionsToolbar } from "@/components/curriculum/BulkActionsToolbar";
 import { BulkImportDialog } from "@/components/curriculum/BulkImportDialog";
 import { DeleteConfirmDialog } from "@/components/curriculum/DeleteConfirmDialog";
 import { CopyYearDialog } from "@/components/curriculum/CopyYearDialog";
+import { BulkEditDialog } from "@/components/curriculum/BulkEditDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,6 +34,7 @@ export function Dashboard() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
+  const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
 
@@ -254,6 +256,63 @@ export function Dashboard() {
     }
   };
 
+  const handleMoveItem = async (itemId: string, newWeek: number) => {
+    try {
+      const item = items.find((i) => i.id === itemId);
+      if (!item) return;
+
+      await curriculumService.updateCurriculumItem(
+        selectedYear,
+        itemId,
+        item.grade,
+        { week: newWeek }
+      );
+      
+      toast({
+        title: "Moved",
+        description: `Item moved to Week ${newWeek}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to move item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBulkEdit = async (updates: { itemId: string; week: number }[]) => {
+    try {
+      const updatePromises = updates.map((update) => {
+        const item = items.find((i) => i.id === update.itemId);
+        if (!item) return Promise.resolve();
+        
+        return curriculumService.updateCurriculumItem(
+          selectedYear,
+          update.itemId,
+          item.grade,
+          { week: update.week }
+        );
+      });
+
+      await Promise.all(updatePromises);
+      
+      toast({
+        title: "Updated",
+        description: `${updates.length} item(s) moved to new week(s).`,
+      });
+      
+      setIsBulkEditDialogOpen(false);
+      setSelectedItems([]);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update items",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-primary/5 via-background to-background border-2 border-primary/10 shadow-sm">
@@ -315,12 +374,7 @@ export function Dashboard() {
           <BulkActionsToolbar
             selectedCount={selectedItems.length}
             onBulkDelete={handleBulkDelete}
-            onBulkEdit={() => {
-              toast({
-                title: "Bulk Edit",
-                description: "Bulk edit feature coming soon.",
-              });
-            }}
+            onBulkEdit={() => setIsBulkEditDialogOpen(true)}
             onExport={handleBulkExport}
             onImport={() => setIsImportDialogOpen(true)}
           />
@@ -343,6 +397,7 @@ export function Dashboard() {
           selectedGrade={selectedGrade}
           onEdit={handleEditItem}
           onDelete={handleDeleteItem}
+          onMoveItem={handleMoveItem}
         />
       )}
 
@@ -372,6 +427,15 @@ export function Dashboard() {
         onConfirm={handleCopyYear}
         sourceYear={selectedYear}
         loading={isCopying}
+      />
+
+      <BulkEditDialog
+        open={isBulkEditDialogOpen}
+        onOpenChange={setIsBulkEditDialogOpen}
+        onConfirm={handleBulkEdit}
+        items={items}
+        selectedItemIds={selectedItems}
+        year={parseInt(selectedYear)}
       />
     </div>
   );

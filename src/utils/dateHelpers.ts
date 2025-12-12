@@ -5,7 +5,7 @@ import { format, startOfYear, addWeeks, getMonth, getYear, addDays, getDay } fro
  * @param year Year (e.g., 2025)
  * @returns Date object for the first Monday of April
  */
-function getFirstMondayOfApril(year: number): Date {
+export function getFirstMondayOfApril(year: number): Date {
   const aprilStart = new Date(year, 3, 1); // April 1st
   const dayOfWeek = aprilStart.getDay(); // 0 = Sunday, 1 = Monday, etc.
   
@@ -20,7 +20,7 @@ function getFirstMondayOfApril(year: number): Date {
  * Get the month (0-11, where 0 = January) for a given week number in a school year
  * School year runs from April (month 3) to March (month 2 of next year)
  * Week 1 = April, Week 52 = March of next year
- * Only counts weekdays (Monday-Friday), excluding weekends
+ * Uses standard calendar weeks (7 days including weekends)
  * @param weekNumber Week number (1-52)
  * @param year Year (e.g., 2025) - represents the starting year of the school year (April)
  * @returns Month number (0-11)
@@ -29,26 +29,16 @@ export function getMonthFromWeek(weekNumber: number, year: number): number {
   // School year starts on the first Monday of April
   const firstMonday = getFirstMondayOfApril(year);
   
-  // Each school week is 5 weekdays (Monday-Friday)
-  // Calculate the date for the middle of the week (Wednesday, day 3 of the week)
-  const weekdaysIntoYear = (weekNumber - 1) * 5; // Total weekdays up to start of this week
-  const middleOfWeek = weekdaysIntoYear + 3; // Wednesday (day 3 of the 5-day week)
+  // Each week is 7 days (standard calendar week)
+  // Calculate the date for the middle of the week (day 4 = Thursday)
+  const daysIntoYear = (weekNumber - 1) * 7; // Total days up to start of this week
+  const middleOfWeek = daysIntoYear + 4; // Thursday (day 4 of the 7-day week)
   
-  // Calculate the target date by adding weekdays only
-  let currentDate = new Date(firstMonday);
-  let weekdaysAdded = 0;
+  // Calculate the target date
+  const targetDate = addDays(firstMonday, middleOfWeek);
   
-  while (weekdaysAdded < middleOfWeek) {
-    currentDate = addDays(currentDate, 1);
-    const dayOfWeek = getDay(currentDate);
-    // Only count weekdays (Monday=1 to Friday=5)
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-      weekdaysAdded++;
-    }
-  }
-  
-  let monthIndex = getMonth(currentDate);
-  let monthYear = getYear(currentDate);
+  let monthIndex = getMonth(targetDate);
+  let monthYear = getYear(targetDate);
   
   // If we're in the next calendar year but before April, it's part of the school year
   // Map January (0), February (1), March (2) to the school year months
@@ -142,5 +132,59 @@ export function getWeeksForMonth(monthIndex: number, year: number): number[] {
   }
   
   return weeks.sort((a, b) => a - b);
+}
+
+/**
+ * Get a week number for the middle of a given month
+ * @param monthIndex Month index (0-11)
+ * @param year Year (school year start)
+ * @returns Week number (1-52)
+ */
+export function getWeekForMonth(monthIndex: number, year: number): number {
+  // Use the middle of the month to determine the week
+  const monthDate = new Date(year, monthIndex, 15); // 15th of the month
+  const firstMonday = getFirstMondayOfApril(year);
+  
+  // Calculate days difference
+  const daysDiff = Math.floor((monthDate.getTime() - firstMonday.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Convert to week number (7 days per week)
+  const weekNumber = Math.floor(daysDiff / 7) + 1;
+  
+  return Math.max(1, Math.min(52, weekNumber));
+}
+
+/**
+ * Get the first week number that falls in a given month
+ * @param monthIndex Month index (0-11)
+ * @param year Year (school year start)
+ * @returns Week number (1-52)
+ */
+export function getFirstWeekForMonth(monthIndex: number, year: number): number {
+  // Check all weeks to find the first one in this month
+  for (let week = 1; week <= 52; week++) {
+    if (getMonthFromWeek(week, year) === monthIndex) {
+      return week;
+    }
+  }
+  // Fallback to middle of month
+  return getWeekForMonth(monthIndex, year);
+}
+
+/**
+ * Get the last week number that falls in a given month
+ * @param monthIndex Month index (0-11)
+ * @param year Year (school year start)
+ * @returns Week number (1-52)
+ */
+export function getLastWeekForMonth(monthIndex: number, year: number): number {
+  // Check all weeks to find the last one in this month
+  for (let week = 52; week >= 1; week--) {
+    if (getMonthFromWeek(week, year) === monthIndex) {
+      return week;
+    }
+  }
+  // Fallback to middle of month
+  return getWeekForMonth(monthIndex, year);
 }
 

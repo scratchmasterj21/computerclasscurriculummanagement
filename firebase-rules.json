@@ -1,0 +1,49 @@
+{
+  "rules": {
+    "curriculum": {
+      "$year": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$grade": {
+          ".read": "auth != null && $grade >= 1 && $grade <= 6",
+          ".write": "auth != null && $grade >= 1 && $grade <= 6",
+          "$itemId": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            "title": {
+              ".validate": "newData.isString() && newData.val().length > 0"
+            },
+            "description": {
+              ".validate": "newData.isString()"
+            },
+            "week": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 52"
+            },
+            "grade": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 6 && newData.val() == $grade"
+            },
+            "topics": {
+              ".validate": "newData.hasChildren() || newData.val() == null"
+            },
+            "resources": {
+              ".validate": "newData.hasChildren() || newData.val() == null"
+            },
+            "id": {
+              ".validate": "newData.isString()"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "updatedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "createdBy": {
+              ".validate": "newData.isString()"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
