@@ -26,7 +26,6 @@ export function CopyYearDialog({
 }: CopyYearDialogProps) {
   const currentYear = parseInt(sourceYear);
   const nextYear = currentYear + 1;
-  const years = Array.from({ length: 5 }, (_, i) => currentYear + 1 + i);
 
   const handleConfirm = () => {
     onConfirm(nextYear.toString());

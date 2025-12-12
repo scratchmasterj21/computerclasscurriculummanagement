@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -22,14 +22,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TopicInput } from "./TopicInput";
-import { CurriculumItem, Topic, Resource, TopicType, ResourceType, GradeLevel } from "@/types/curriculum";
+import { CurriculumItem, Topic, Resource, ResourceType, GradeLevel } from "@/types/curriculum";
 import { Plus, X } from "lucide-react";
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string(),
   week: z.number().min(1).max(52),
-  grade: z.number().min(1).max(6),
+  grade: z.number().min(1).max(6).refine((val): val is GradeLevel => val >= 1 && val <= 6, {
+    message: "Grade must be between 1 and 6",
+  }),
   topics: z.array(
     z.object({
       name: z.string().min(1, "Topic name is required"),

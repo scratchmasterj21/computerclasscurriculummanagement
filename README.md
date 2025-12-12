@@ -76,14 +76,29 @@ Add these rules to your Firebase Realtime Database:
       "$year": {
         ".read": "auth != null",
         ".write": "auth != null",
-        "$itemId": {
-          ".validate": "newData.hasChildren(['title', 'week', 'topics', 'resources']) && newData.child('week').val() >= 1 && newData.child('week').val() <= 52"
+        "$grade": {
+          ".validate": "$grade >= 1 && $grade <= 6",
+          "$itemId": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            ".validate": "newData.hasChildren(['title', 'week', 'grade', 'topics', 'resources']) && newData.child('week').val() >= 1 && newData.child('week').val() <= 52 && newData.child('grade').val() >= 1 && newData.child('grade').val() <= 6 && newData.child('grade').val() == $grade"
+          }
         }
       }
     }
   }
 }
 ```
+
+**Rule Explanation:**
+- **Authentication Required**: All read/write operations require authentication (`auth != null`)
+- **Year Structure**: `curriculum/{year}/` - any year string is allowed
+- **Grade Validation**: Grade must be between 1 and 6
+- **Item Validation**: Each item must have:
+  - `title`, `week`, `grade`, `topics`, `resources` fields
+  - `week` must be between 1 and 52
+  - `grade` must be between 1 and 6
+  - `grade` in the item must match the grade in the path
 
 ## Project Structure
 

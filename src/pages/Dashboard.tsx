@@ -194,10 +194,6 @@ export function Dashboard() {
     });
   };
 
-  const handleBulkImport = (importedItems: CurriculumItemInput[]) => {
-    // This will be handled by the BulkImportDialog
-  };
-
   const handleImportSubmit = async (importedItems: CurriculumItemInput[]) => {
     try {
       await curriculumService.bulkAdd(

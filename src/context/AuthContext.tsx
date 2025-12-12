@@ -30,13 +30,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (): Promise<void> => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       console.log("Google sign-in successful:", result.user.email);
       // Update current user immediately (onAuthStateChanged will also fire, but this ensures immediate update)
       setCurrentUser(result.user);
-      return result;
     } catch (error: any) {
       console.error("Google sign-in error in context:", error);
       throw error;

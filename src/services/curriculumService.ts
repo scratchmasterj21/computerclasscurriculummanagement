@@ -1,4 +1,4 @@
-import { ref, set, get, remove, onValue, off, push, update, DatabaseReference } from "firebase/database";
+import { ref, set, get, remove, onValue, off, push, update } from "firebase/database";
 import { database } from "@/config/firebase";
 import { CurriculumItem, CurriculumItemInput } from "@/types/curriculum";
 

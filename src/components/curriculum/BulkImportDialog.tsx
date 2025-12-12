@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { CurriculumItemInput } from "@/types/curriculum";
+import { CurriculumItemInput, GradeLevel } from "@/types/curriculum";
 import { importExportService } from "@/services/importExportService";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -36,7 +36,6 @@ export function BulkImportDialog({
   onImport,
 }: BulkImportDialogProps) {
   const [activeTab, setActiveTab] = useState<"csv" | "json">("csv");
-  const [file, setFile] = useState<File | null>(null);
   const [jsonText, setJsonText] = useState("");
   const [previewItems, setPreviewItems] = useState<CurriculumItemInput[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
@@ -46,7 +45,6 @@ export function BulkImportDialog({
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    setFile(selectedFile);
     setErrors([]);
 
     try {
@@ -86,6 +84,7 @@ export function BulkImportDialog({
         title: item.title || "",
         description: item.description || "",
         week: parseInt(item.week) || 1,
+        grade: (parseInt(item.grade) || 1) as GradeLevel,
         topics: item.topics || [],
         resources: item.resources || [],
       }));
@@ -115,7 +114,6 @@ export function BulkImportDialog({
 
     onImport(previewItems);
     onOpenChange(false);
-    setFile(null);
     setJsonText("");
     setPreviewItems([]);
     setErrors([]);

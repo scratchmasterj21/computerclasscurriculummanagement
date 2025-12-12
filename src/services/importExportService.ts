@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import { CurriculumItem, CurriculumItemInput, Topic, Resource } from "@/types/curriculum";
+import { CurriculumItem, CurriculumItemInput, GradeLevel } from "@/types/curriculum";
 
 export const importExportService = {
   // Parse CSV file
@@ -15,7 +15,7 @@ export const importExportService = {
                 title: row.title || "",
                 description: row.description || "",
                 week: parseInt(row.week) || 1,
-                grade: parseInt(row.grade) || 1,
+                grade: (parseInt(row.grade) || 1) as GradeLevel,
                 topics: [],
                 resources: [],
               };
@@ -82,7 +82,7 @@ export const importExportService = {
             title: item.title || "",
             description: item.description || "",
             week: parseInt(item.week) || 1,
-            grade: parseInt(item.grade) || 1,
+            grade: (parseInt(item.grade) || 1) as GradeLevel,
             topics: item.topics || [],
             resources: item.resources || [],
           }));

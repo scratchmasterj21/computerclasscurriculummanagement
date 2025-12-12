@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -30,7 +29,6 @@ export function CurriculumTable({
   onDelete,
 }: CurriculumTableProps) {
   const allSelected = items.length > 0 && selectedItems.length === items.length;
-  const someSelected = selectedItems.length > 0 && selectedItems.length < items.length;
 
   return (
     <div className="rounded-lg border-2 border-border/50 bg-card shadow-lg overflow-hidden">
