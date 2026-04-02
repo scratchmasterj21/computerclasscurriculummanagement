@@ -2,7 +2,23 @@ import { CurriculumItem, GradeLevel } from "@/types/curriculum";
 import { AnalyticsData } from "./analyticsService";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx";
-import { getSchoolYearMonths, getMonthFromWeek } from "@/utils/dateHelpers";
+import {
+  getSchoolYearMonths,
+  getMonthFromWeek,
+  getMonthFromLessonDate,
+  getApproxLessonDateFromWeek,
+  formatLessonDate,
+} from "@/utils/dateHelpers";
+
+function getDisplayLessonDate(item: CurriculumItem, schoolYear: number): string {
+  return formatLessonDate(item.lessonDate || getApproxLessonDateFromWeek(item.week, schoolYear));
+}
+
+function getItemMonthIndex(item: CurriculumItem, schoolYear: number): number {
+  return item.lessonDate
+    ? getMonthFromLessonDate(item.lessonDate, schoolYear)
+    : getMonthFromWeek(item.week, schoolYear);
+}
 
 export const exportService = {
   exportToPDF: (
@@ -91,7 +107,11 @@ export const exportService = {
       
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
-      doc.text(`Grade ${item.grade} • Week ${item.week}`, margin + 5, yPos);
+      doc.text(
+        `Grade ${item.grade} • Week ${item.week} • ${getDisplayLessonDate(item, parseInt(year))}`,
+        margin + 5,
+        yPos
+      );
       yPos += 6;
       
       if (item.description) {
@@ -165,6 +185,7 @@ export const exportService = {
         "Title",
         "Grade",
         "Week",
+        "Lesson Date",
         "Description",
         "Topics Count",
         "Resources Count",
@@ -175,6 +196,7 @@ export const exportService = {
         item.title,
         item.grade,
         item.week,
+        getDisplayLessonDate(item, parseInt(year)),
         item.description || "",
         item.topics.length,
         item.resources.length,
@@ -191,10 +213,11 @@ export const exportService = {
       if (gradeItems.length > 0) {
         const gradeData = [
           [`Grade ${grade} - Curriculum Items`],
-          ["Title", "Week", "Description", "Topics", "Resources"],
+          ["Title", "Week", "Lesson Date", "Description", "Topics", "Resources"],
           ...gradeItems.map((item) => [
             item.title,
             item.week,
+            getDisplayLessonDate(item, parseInt(year)),
             item.description || "",
             item.topics.map((t) => t.name).join(", "),
             item.resources.map((r) => r.name).join(", "),
@@ -293,7 +316,7 @@ export const exportService = {
       doc.setFontSize(10);
       comparisonData.added.slice(0, 20).forEach((item: CurriculumItem) => {
         doc.text(
-          `• ${item.title} (Grade ${item.grade}, Week ${item.week})`,
+          `• ${item.title} (Grade ${item.grade}, Week ${item.week}, ${getDisplayLessonDate(item, parseInt(comparisonData.year2 || comparisonData.year1))})`,
           margin + 5,
           yPos
         );
@@ -310,7 +333,7 @@ export const exportService = {
       doc.setFontSize(10);
       comparisonData.removed.slice(0, 20).forEach((item: CurriculumItem) => {
         doc.text(
-          `• ${item.title} (Grade ${item.grade}, Week ${item.week})`,
+          `• ${item.title} (Grade ${item.grade}, Week ${item.week}, ${getDisplayLessonDate(item, parseInt(comparisonData.year2 || comparisonData.year1))})`,
           margin + 5,
           yPos
         );
@@ -351,7 +374,7 @@ export const exportService = {
     });
 
     items.forEach((item) => {
-      const monthIndex = getMonthFromWeek(item.week, year);
+      const monthIndex = getItemMonthIndex(item, year);
       if (itemsByGradeAndMonth[item.grade] && itemsByGradeAndMonth[item.grade][monthIndex]) {
         itemsByGradeAndMonth[item.grade][monthIndex].push(item);
       }
@@ -478,7 +501,7 @@ export const exportService = {
     });
 
     items.forEach((item) => {
-      const monthIndex = getMonthFromWeek(item.week, year);
+      const monthIndex = getItemMonthIndex(item, year);
       if (itemsByGradeAndMonth[item.grade] && itemsByGradeAndMonth[item.grade][monthIndex]) {
         itemsByGradeAndMonth[item.grade][monthIndex].push(item);
       }
@@ -499,7 +522,7 @@ export const exportService = {
         const monthItems = itemsByGradeAndMonth[grade]?.[month.monthIndex] || [];
         if (monthItems.length > 0) {
           const itemsText = monthItems
-            .map((item) => `${item.title} (Week ${item.week})`)
+            .map((item) => `${item.title} (${getDisplayLessonDate(item, year)} • Week ${item.week})`)
             .join("\n");
           row.push(itemsText);
         } else {
@@ -526,13 +549,14 @@ export const exportService = {
       if (gradeItems.length > 0) {
         const gradeData = [
           [`Grade ${grade} - Detailed View`],
-          ["Month", "Week", "Title", "Description", "Topics", "Resources"],
+          ["Month", "Week", "Lesson Date", "Title", "Description", "Topics", "Resources"],
           ...gradeItems.map((item) => {
-            const monthIndex = getMonthFromWeek(item.week, year);
+            const monthIndex = getItemMonthIndex(item, year);
             const month = months.find((m) => m.monthIndex === monthIndex);
             return [
               month?.name || "",
               item.week,
+              getDisplayLessonDate(item, year),
               item.title,
               item.description || "",
               item.topics.map((t) => t.name).join(", "),

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { CurriculumItem, TopicType } from "@/types/curriculum";
 import { Edit, Trash2, ChevronDown, ChevronRight, ArrowUpDown, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { formatLessonDate, getApproxLessonDateFromWeek } from "@/utils/dateHelpers";
 
 interface CurriculumTableProps {
   items: CurriculumItem[];
@@ -141,9 +142,14 @@ export function CurriculumTable({
                       </span>
                     </TableCell>
                     <TableCell className="font-semibold">
-                      <span className="px-2 py-1 rounded-md bg-muted text-foreground">
-                        Week {item.week}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className="px-2 py-1 rounded-md bg-muted text-foreground">
+                          Week {item.week}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatLessonDate(item.lessonDate || getApproxLessonDateFromWeek(item.week, new Date(item.createdAt).getFullYear()))}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -260,6 +266,9 @@ export function CurriculumTable({
                             </div>
                           )}
                           <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
+                            <span>
+                              Lesson Date: {formatLessonDate(item.lessonDate || getApproxLessonDateFromWeek(item.week, new Date(item.createdAt).getFullYear()))}
+                            </span>
                             <span>Created: {new Date(item.createdAt).toLocaleDateString()}</span>
                             {item.updatedAt !== item.createdAt && (
                               <span>Updated: {new Date(item.updatedAt).toLocaleDateString()}</span>

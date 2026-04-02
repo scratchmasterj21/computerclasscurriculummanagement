@@ -6,6 +6,9 @@ import {
   getWeekForMonth,
   getFirstWeekForMonth,
   getLastWeekForMonth,
+  getMonthFromLessonDate,
+  formatLessonDate,
+  getApproxLessonDateFromWeek,
 } from "@/utils/dateHelpers";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -149,7 +152,9 @@ export function MonthView({
     });
 
     items.forEach((item) => {
-      const monthIndex = getMonthFromWeek(item.week, year);
+      const monthIndex = item.lessonDate
+        ? getMonthFromLessonDate(item.lessonDate, year)
+        : getMonthFromWeek(item.week, year);
       if (grouped[item.grade] && grouped[item.grade][monthIndex]) {
         grouped[item.grade][monthIndex].push(item);
       }
@@ -169,7 +174,12 @@ export function MonthView({
     () =>
       months.map((month) => ({
         monthIndex: month.monthIndex,
-        count: items.filter((item) => getMonthFromWeek(item.week, year) === month.monthIndex).length,
+        count: items.filter((item) => {
+          const monthIndex = item.lessonDate
+            ? getMonthFromLessonDate(item.lessonDate, year)
+            : getMonthFromWeek(item.week, year);
+          return monthIndex === month.monthIndex;
+        }).length,
       })),
     [items, months, year]
   );
@@ -418,6 +428,11 @@ export function MonthView({
                                       Week {item.week}
                                     </span>
                                     <span className="text-muted-foreground">
+                                      {formatLessonDate(
+                                        item.lessonDate || getApproxLessonDateFromWeek(item.week, year)
+                                      )}
+                                    </span>
+                                    <span className="text-muted-foreground">
                                       {item.topics.length} topic{item.topics.length !== 1 ? "s" : ""}
                                     </span>
                                     <span className="text-muted-foreground">
@@ -525,7 +540,7 @@ export function MonthView({
           <DialogHeader>
             <DialogTitle>{previewItem?.title}</DialogTitle>
             <DialogDescription>
-              Grade {previewItem?.grade} • Week {previewItem?.week}
+              Grade {previewItem?.grade} • Week {previewItem?.week} • {previewItem ? formatLessonDate(previewItem.lessonDate || getApproxLessonDateFromWeek(previewItem.week, year)) : ""}
             </DialogDescription>
           </DialogHeader>
           {previewItem && (

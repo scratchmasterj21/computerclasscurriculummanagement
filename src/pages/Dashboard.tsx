@@ -40,6 +40,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getApproxLessonDateFromWeek } from "@/utils/dateHelpers";
 
 type SortField = "grade" | "week" | "title" | "topics" | "resources";
 type SortDirection = "asc" | "desc";
@@ -277,6 +278,8 @@ export function Dashboard() {
       const duplicateData: CurriculumItemInput = {
         title: `${item.title} (Copy)`,
         description: item.description,
+        lessonDate:
+          item.lessonDate || getApproxLessonDateFromWeek(item.week, parseInt(selectedYear)),
         week: item.week,
         grade: item.grade,
         topics: item.topics,
@@ -346,6 +349,8 @@ export function Dashboard() {
       const itemData: CurriculumItemInput = {
         title: item.title,
         description: item.description,
+        lessonDate:
+          item.lessonDate || getApproxLessonDateFromWeek(item.week, parseInt(selectedYear)),
         week: item.week,
         grade: item.grade,
         topics: item.topics,
@@ -937,6 +942,7 @@ export function Dashboard() {
         onOpenChange={setIsFormOpen}
         onSubmit={handleFormSubmit}
         initialData={editingItem}
+        schoolYear={parseInt(selectedYear)}
       />
 
       <DeleteConfirmDialog

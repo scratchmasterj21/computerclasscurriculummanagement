@@ -1,6 +1,39 @@
 import { ref, set, get, remove, onValue, off, push, update } from "firebase/database";
 import { database } from "@/config/firebase";
 import { CurriculumItem, CurriculumItemInput } from "@/types/curriculum";
+import { getApproxLessonDateFromWeek, getWeekFromLessonDate } from "@/utils/dateHelpers";
+
+function normalizeCurriculumInput(year: string, item: CurriculumItemInput): CurriculumItemInput {
+  const schoolYear = parseInt(year);
+  const lessonDate = item.lessonDate || getApproxLessonDateFromWeek(item.week, schoolYear);
+
+  return {
+    ...item,
+    lessonDate,
+    week: getWeekFromLessonDate(lessonDate, schoolYear),
+  };
+}
+
+function normalizePartialCurriculumInput(
+  year: string,
+  currentItem: CurriculumItem,
+  updates: Partial<CurriculumItemInput>
+): Partial<CurriculumItemInput> {
+  const schoolYear = parseInt(year);
+  const lessonDate =
+    updates.lessonDate ??
+    currentItem.lessonDate ??
+    (updates.week ? getApproxLessonDateFromWeek(updates.week, schoolYear) : getApproxLessonDateFromWeek(currentItem.week, schoolYear));
+
+  return {
+    ...updates,
+    lessonDate,
+    week:
+      updates.week && !updates.lessonDate
+        ? updates.week
+        : getWeekFromLessonDate(lessonDate, schoolYear),
+  };
+}
 
 export const curriculumService = {
   // Get curriculum for a year (and optionally a grade) with real-time listener
@@ -47,6 +80,7 @@ export const curriculumService = {
                     grade: gradeNum as any,
                     topics: item?.topics || [],
                     resources: item?.resources || [],
+                    lessonDate: item?.lessonDate,
                     ...item,
                   });
                 });
@@ -58,6 +92,7 @@ export const curriculumService = {
                   grade: (item?.grade || 1) as any,
                   topics: item?.topics || [],
                   resources: item?.resources || [],
+                  lessonDate: item?.lessonDate,
                   ...item,
                 });
               }
@@ -68,6 +103,9 @@ export const curriculumService = {
         // Sort by grade, then week
         items.sort((a, b) => {
           if (a.grade !== b.grade) return a.grade - b.grade;
+          if (a.lessonDate && b.lessonDate) {
+            return a.lessonDate.localeCompare(b.lessonDate);
+          }
           return a.week - b.week;
         });
         callback(items);
@@ -88,10 +126,11 @@ export const curriculumService = {
   ): Promise<string> => {
     const curriculumRef = ref(database, `curriculum/${year}/${item.grade}`);
     const newItemRef = push(curriculumRef);
+    const normalizedItem = normalizeCurriculumInput(year, item);
     
     const newItem: CurriculumItem = {
       id: newItemRef.key!,
-      ...item,
+      ...normalizedItem,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       createdBy: userId,
@@ -116,11 +155,12 @@ export const curriculumService = {
       const currentData = snapshot.val();
       
       if (currentData) {
+        const normalizedUpdates = normalizePartialCurriculumInput(year, { id: itemId, ...currentData }, updates);
         // Add to new grade location
         const newRef = ref(database, `curriculum/${year}/${updates.grade}/${itemId}`);
         await set(newRef, {
           ...currentData,
-          ...updates,
+          ...normalizedUpdates,
           updatedAt: Date.now(),
         });
         
@@ -132,8 +172,13 @@ export const curriculumService = {
     
     // Regular update
     const itemRef = ref(database, `curriculum/${year}/${currentGrade}/${itemId}`);
+    const currentSnapshot = await get(itemRef);
+    const currentData = currentSnapshot.val();
+    const normalizedUpdates = currentData
+      ? normalizePartialCurriculumInput(year, { id: itemId, ...currentData }, updates)
+      : updates;
     const updateData = {
-      ...updates,
+      ...normalizedUpdates,
       updatedAt: Date.now(),
     };
     await update(itemRef, updateData);
@@ -172,8 +217,14 @@ export const curriculumService = {
     
     Object.keys(updates).forEach((itemId) => {
       const { grade, data } = updates[itemId];
-      dbUpdates[`curriculum/${year}/${grade}/${itemId}`] = {
+      const normalizedData = {
         ...data,
+        ...(data.lessonDate
+          ? { week: getWeekFromLessonDate(data.lessonDate, parseInt(year)) }
+          : {}),
+      };
+      dbUpdates[`curriculum/${year}/${grade}/${itemId}`] = {
+        ...normalizedData,
         updatedAt: timestamp,
       };
     });
@@ -194,9 +245,10 @@ export const curriculumService = {
     for (const item of items) {
       const curriculumRef = ref(database, `curriculum/${year}/${item.grade}`);
       const newItemRef = push(curriculumRef);
+      const normalizedItem = normalizeCurriculumInput(year, item);
       const newItem: CurriculumItem = {
         id: newItemRef.key!,
-        ...item,
+        ...normalizedItem,
         createdAt: timestamp,
         updatedAt: timestamp,
         createdBy: userId,
@@ -243,7 +295,12 @@ export const curriculumService = {
               id: newItemRef.key!,
               title: item.title,
               description: item.description || "",
-              week: item.week,
+              lessonDate:
+                item.lessonDate || getApproxLessonDateFromWeek(item.week, parseInt(targetYear)),
+              week: getWeekFromLessonDate(
+                item.lessonDate || getApproxLessonDateFromWeek(item.week, parseInt(targetYear)),
+                parseInt(targetYear)
+              ),
               grade: item.grade,
               topics: item.topics || [],
               resources: item.resources || [],
@@ -260,6 +317,42 @@ export const curriculumService = {
     }
 
     return copiedCount;
+  },
+
+  backfillLessonDates: async (year: string): Promise<number> => {
+    const yearRef = ref(database, `curriculum/${year}`);
+    const snapshot = await get(yearRef);
+    const data = snapshot.val();
+
+    if (!data) {
+      return 0;
+    }
+
+    const updates: Record<string, string> = {};
+    let updatedCount = 0;
+
+    Object.keys(data).forEach((gradeKey) => {
+      const gradeItems = data[gradeKey];
+      if (!gradeItems) return;
+
+      Object.keys(gradeItems).forEach((itemId) => {
+        const item = gradeItems[itemId];
+        if (!item?.lessonDate && item?.week) {
+          updates[`curriculum/${year}/${gradeKey}/${itemId}/lessonDate`] = getApproxLessonDateFromWeek(
+            item.week,
+            parseInt(year)
+          );
+          updatedCount += 1;
+        }
+      });
+    });
+
+    if (updatedCount > 0) {
+      const rootRef = ref(database);
+      await update(rootRef, updates);
+    }
+
+    return updatedCount;
   },
 };
 

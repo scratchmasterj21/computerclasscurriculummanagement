@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import { CurriculumItem, CurriculumItemInput, GradeLevel } from "@/types/curriculum";
+import { getApproxLessonDateFromWeek, getWeekFromLessonDate } from "@/utils/dateHelpers";
 
 export const importExportService = {
   // Parse CSV file
@@ -14,11 +15,14 @@ export const importExportService = {
               const item: CurriculumItemInput = {
                 title: row.title || "",
                 description: row.description || "",
+                lessonDate:
+                  row.lessonDate || getApproxLessonDateFromWeek(parseInt(row.week) || 1, new Date().getFullYear()),
                 week: parseInt(row.week) || 1,
                 grade: (parseInt(row.grade) || 1) as GradeLevel,
                 topics: [],
                 resources: [],
               };
+              item.week = getWeekFromLessonDate(item.lessonDate, new Date().getFullYear());
 
               // Parse topics (can be comma-separated or JSON)
               if (row.topics) {
@@ -81,6 +85,8 @@ export const importExportService = {
           const validatedItems: CurriculumItemInput[] = items.map((item: any) => ({
             title: item.title || "",
             description: item.description || "",
+            lessonDate:
+              item.lessonDate || getApproxLessonDateFromWeek(parseInt(item.week) || 1, new Date().getFullYear()),
             week: parseInt(item.week) || 1,
             grade: (parseInt(item.grade) || 1) as GradeLevel,
             topics: item.topics || [],
@@ -107,6 +113,9 @@ export const importExportService = {
       }
       if (!item.week || item.week < 1 || item.week > 52) {
         errors.push(`Item ${index + 1}: Week must be between 1 and 52`);
+      }
+      if (!item.lessonDate || item.lessonDate.trim() === "") {
+        errors.push(`Item ${index + 1}: Lesson date is required`);
       }
       if (!item.grade || item.grade < 1 || item.grade > 6) {
         errors.push(`Item ${index + 1}: Grade must be between 1 and 6`);
@@ -140,6 +149,7 @@ export const importExportService = {
     const csvData = items.map((item) => ({
       grade: item.grade,
       week: item.week,
+      lessonDate: item.lessonDate,
       title: item.title,
       description: item.description,
       topics: JSON.stringify(item.topics),

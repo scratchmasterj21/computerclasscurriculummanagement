@@ -24,10 +24,16 @@ import {
 import { TopicInput } from "./TopicInput";
 import { CurriculumItem, Topic, Resource, ResourceType, GradeLevel } from "@/types/curriculum";
 import { Plus, X } from "lucide-react";
+import {
+  getApproxLessonDateFromWeek,
+  getWeekFromLessonDate,
+  isDateInSchoolYear,
+} from "@/utils/dateHelpers";
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string(),
+  lessonDate: z.string().min(1, "Lesson date is required"),
   week: z.number().min(1).max(52),
   grade: z.number().min(1).max(6).refine((val): val is GradeLevel => val >= 1 && val <= 6, {
     message: "Grade must be between 1 and 6",
@@ -56,6 +62,7 @@ interface CurriculumFormProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: FormValues) => void;
   initialData?: CurriculumItem;
+  schoolYear: number;
 }
 
 export function CurriculumForm({
@@ -63,6 +70,7 @@ export function CurriculumForm({
   onOpenChange,
   onSubmit,
   initialData,
+  schoolYear,
 }: CurriculumFormProps) {
   const {
     register,
@@ -76,6 +84,7 @@ export function CurriculumForm({
     defaultValues: {
       title: "",
       description: "",
+      lessonDate: getApproxLessonDateFromWeek(1, schoolYear),
       week: 1,
       grade: 1,
       topics: [],
@@ -85,12 +94,15 @@ export function CurriculumForm({
 
   const topics = watch("topics");
   const resources = watch("resources");
+  const lessonDate = watch("lessonDate");
 
   useEffect(() => {
     if (initialData) {
       reset({
         title: initialData.title,
         description: initialData.description,
+        lessonDate:
+          initialData.lessonDate || getApproxLessonDateFromWeek(initialData.week, schoolYear),
         week: initialData.week,
         grade: initialData.grade,
         topics: initialData.topics,
@@ -100,13 +112,22 @@ export function CurriculumForm({
       reset({
         title: "",
         description: "",
+        lessonDate: getApproxLessonDateFromWeek(1, schoolYear),
         week: 1,
         grade: 1,
         topics: [],
         resources: [],
       });
     }
-  }, [initialData, open, reset]);
+  }, [initialData, open, reset, schoolYear]);
+
+  useEffect(() => {
+    if (!lessonDate) return;
+    setValue("week", getWeekFromLessonDate(lessonDate, schoolYear), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [lessonDate, schoolYear, setValue]);
 
   const addTopic = () => {
     const newTopic: Topic = {
@@ -202,10 +223,28 @@ export function CurriculumForm({
               )}
             </div>
             <div>
+              <Label htmlFor="lessonDate">Lesson Date *</Label>
+              <Input
+                id="lessonDate"
+                type="date"
+                {...register("lessonDate")}
+              />
+              {errors.lessonDate && (
+                <p className="text-sm text-destructive mt-1">
+                  {errors.lessonDate.message}
+                </p>
+              )}
+              {!errors.lessonDate && lessonDate && !isDateInSchoolYear(lessonDate, schoolYear) && (
+                <p className="text-sm text-amber-600 mt-1">
+                  This date falls outside the {schoolYear}-{schoolYear + 1} school year.
+                </p>
+              )}
+            </div>
+            <div>
               <Label htmlFor="week">Week *</Label>
               <Select
                 value={watch("week").toString()}
-                onValueChange={(value) => setValue("week", parseInt(value))}
+                onValueChange={(value) => setValue("week", parseInt(value), { shouldDirty: true, shouldValidate: true })}
               >
                 <SelectTrigger id="week">
                   <SelectValue />
@@ -223,6 +262,9 @@ export function CurriculumForm({
                   {errors.week.message}
                 </p>
               )}
+              <p className="text-xs text-muted-foreground mt-1">
+                Week is auto-derived from the lesson date for compatibility.
+              </p>
             </div>
           </div>
 

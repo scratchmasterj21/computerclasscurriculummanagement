@@ -16,6 +16,9 @@
             "description": {
               ".validate": "newData.isString()"
             },
+            "lessonDate": {
+              ".validate": "newData.isString() || newData.val() == null"
+            },
             "week": {
               ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 52"
             },

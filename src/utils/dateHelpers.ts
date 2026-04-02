@@ -1,4 +1,14 @@
-import { format, startOfYear, addWeeks, getMonth, getYear, addDays } from "date-fns";
+import {
+  format,
+  startOfYear,
+  addWeeks,
+  getMonth,
+  getYear,
+  addDays,
+  differenceInCalendarDays,
+  parseISO,
+  isValid,
+} from "date-fns";
 
 /**
  * Get the first Monday of April (school year start)
@@ -14,6 +24,43 @@ export function getFirstMondayOfApril(year: number): Date {
   const daysToAdd = dayOfWeek === 0 ? 1 : (8 - dayOfWeek) % 7;
   
   return addDays(aprilStart, daysToAdd);
+}
+
+export function formatLessonDate(date: string | undefined): string {
+  if (!date) return "No date set";
+  const parsed = parseISO(date);
+  return isValid(parsed) ? format(parsed, "MMM d, yyyy") : "Invalid date";
+}
+
+export function getWeekFromLessonDate(lessonDate: string, schoolYear: number): number {
+  const parsed = parseISO(lessonDate);
+  if (!isValid(parsed)) return 1;
+
+  const firstMonday = getFirstMondayOfApril(schoolYear);
+  const diffDays = differenceInCalendarDays(parsed, firstMonday);
+  const weekNumber = Math.floor(diffDays / 7) + 1;
+  return Math.max(1, Math.min(52, weekNumber));
+}
+
+export function getMonthFromLessonDate(lessonDate: string, fallbackYear?: number): number {
+  const parsed = parseISO(lessonDate);
+  if (!isValid(parsed)) return fallbackYear ? getMonth(new Date(fallbackYear, 3, 1)) : 3;
+  return getMonth(parsed);
+}
+
+export function isDateInSchoolYear(lessonDate: string, schoolYear: number): boolean {
+  const parsed = parseISO(lessonDate);
+  if (!isValid(parsed)) return false;
+
+  const start = getFirstMondayOfApril(schoolYear);
+  const end = addDays(getFirstMondayOfApril(schoolYear + 1), -1);
+  return parsed >= start && parsed <= end;
+}
+
+export function getApproxLessonDateFromWeek(weekNumber: number, year: number): string {
+  const firstMonday = getFirstMondayOfApril(year);
+  const targetDate = addDays(firstMonday, (weekNumber - 1) * 7);
+  return format(targetDate, "yyyy-MM-dd");
 }
 
 /**

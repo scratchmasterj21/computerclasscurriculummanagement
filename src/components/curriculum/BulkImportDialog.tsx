@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CurriculumItemInput, GradeLevel } from "@/types/curriculum";
 import { importExportService } from "@/services/importExportService";
 import { useToast } from "@/hooks/use-toast";
+import { getApproxLessonDateFromWeek } from "@/utils/dateHelpers";
 import {
   Table,
   TableBody,
@@ -83,6 +84,8 @@ export function BulkImportDialog({
       const validatedItems: CurriculumItemInput[] = items.map((item: any) => ({
         title: item.title || "",
         description: item.description || "",
+        lessonDate:
+          item.lessonDate || getApproxLessonDateFromWeek(parseInt(item.week) || 1, new Date().getFullYear()),
         week: parseInt(item.week) || 1,
         grade: (parseInt(item.grade) || 1) as GradeLevel,
         topics: item.topics || [],
@@ -191,6 +194,7 @@ export function BulkImportDialog({
                   <TableRow>
                     <TableHead>Grade</TableHead>
                     <TableHead>Week</TableHead>
+                    <TableHead>Date</TableHead>
                     <TableHead>Title</TableHead>
                     <TableHead>Topics</TableHead>
                     <TableHead>Resources</TableHead>
@@ -201,6 +205,7 @@ export function BulkImportDialog({
                     <TableRow key={index}>
                       <TableCell>Grade {item.grade}</TableCell>
                       <TableCell>{item.week}</TableCell>
+                      <TableCell>{item.lessonDate}</TableCell>
                       <TableCell>{item.title}</TableCell>
                       <TableCell>{item.topics.length}</TableCell>
                       <TableCell>{item.resources.length}</TableCell>
