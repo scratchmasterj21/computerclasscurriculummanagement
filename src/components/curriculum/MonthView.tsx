@@ -48,6 +48,7 @@ interface MonthViewProps {
   selectedGrade: GradeLevel | "all";
   onEdit: (item: CurriculumItem) => void;
   onDelete: (id: string) => void;
+  onBulkDelete?: () => void;
   onMoveItem?: (itemId: string, newWeek: number) => void;
   onMoveItems?: (itemIds: string[], newWeek: number) => void;
   selectedItemIds?: string[];
@@ -61,6 +62,7 @@ export function MonthView({
   selectedGrade,
   onEdit,
   onDelete,
+  onBulkDelete,
   onMoveItem,
   onMoveItems,
   selectedItemIds = [],
@@ -212,6 +214,14 @@ export function MonthView({
             >
               <ArrowRightLeft className="mr-2 h-4 w-4" />
               Move Selected
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={onBulkDelete}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Selected
             </Button>
             <Button variant="ghost" size="sm" onClick={onClearSelection}>
               Clear

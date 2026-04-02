@@ -37,6 +37,7 @@ import {
   Search,
   Filter,
   ArrowRightLeft,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -76,7 +77,6 @@ export function Dashboard() {
   const [weekRange, setWeekRange] = useState({ min: 1, max: 52 });
   const [topicTypeFilter, setTopicTypeFilter] = useState<TopicType | "all">("all");
   const [isLoading, setIsLoading] = useState(false);
-  const [monthSelectedItems, setMonthSelectedItems] = useState<string[]>([]);
   const [monthSearchQuery, setMonthSearchQuery] = useState("");
   const [monthResourceFilter, setMonthResourceFilter] = useState<
     "all" | "with-resources" | "without-resources"
@@ -402,6 +402,7 @@ export function Dashboard() {
           ) : undefined,
         });
         setSelectedItems([]);
+        setMonthShowSelectedOnly(false);
       }
       setIsDeleteDialogOpen(false);
     } catch (error: any) {
@@ -469,14 +470,8 @@ export function Dashboard() {
     setSelectedItems(checked ? filteredAndSortedItems.map((item) => item.id) : []);
   };
 
-  const handleToggleMonthSelectItem = (id: string) => {
-    setMonthSelectedItems((prev) =>
-      prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
-    );
-  };
-
   const handleClearMonthSelection = () => {
-    setMonthSelectedItems([]);
+    setSelectedItems([]);
     setMonthShowSelectedOnly(false);
   };
 
@@ -502,7 +497,7 @@ export function Dashboard() {
     }
 
     if (monthShowSelectedOnly) {
-      filtered = filtered.filter((item) => monthSelectedItems.includes(item.id));
+      filtered = filtered.filter((item) => selectedItems.includes(item.id));
     }
 
     return filtered;
@@ -511,7 +506,7 @@ export function Dashboard() {
     monthSearchQuery,
     monthResourceFilter,
     monthShowSelectedOnly,
-    monthSelectedItems,
+    selectedItems,
   ]);
 
   const handleCopyYear = async (targetYear: string) => {
@@ -832,7 +827,7 @@ export function Dashboard() {
               <Button
                 variant={monthShowSelectedOnly ? "default" : "outline"}
                 onClick={() => setMonthShowSelectedOnly((prev) => !prev)}
-                disabled={monthSelectedItems.length === 0}
+                disabled={selectedItems.length === 0}
               >
                 <Filter className="mr-2 h-4 w-4" />
                 Selected Only
@@ -842,8 +837,8 @@ export function Dashboard() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm text-muted-foreground">
                 Showing {visibleMonthItems.length} lesson{visibleMonthItems.length === 1 ? "" : "s"}
-                {monthSelectedItems.length > 0
-                  ? ` • ${monthSelectedItems.length} selected`
+                {selectedItems.length > 0
+                  ? ` • ${selectedItems.length} selected`
                   : ""}
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -900,10 +895,18 @@ export function Dashboard() {
                   Export Excel
                 </Button>
                 <Button
+                  variant="destructive"
+                  disabled={selectedItems.length === 0}
+                  onClick={handleBulkDelete}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Selected
+                </Button>
+                <Button
                   variant="ghost"
                   disabled={
-                    monthSelectedItems.length === 0 ||
-                    !visibleMonthItems.some((item) => monthSelectedItems.includes(item.id))
+                    selectedItems.length === 0 ||
+                    !visibleMonthItems.some((item) => selectedItems.includes(item.id))
                   }
                   onClick={handleClearMonthSelection}
                 >
@@ -919,10 +922,11 @@ export function Dashboard() {
             selectedGrade={selectedGrade}
             onEdit={handleEditItem}
             onDelete={handleDeleteItem}
+            onBulkDelete={handleBulkDelete}
             onMoveItem={handleMoveItem}
             onMoveItems={handleMoveItems}
-            selectedItemIds={monthSelectedItems}
-            onToggleSelectItem={handleToggleMonthSelectItem}
+            selectedItemIds={selectedItems}
+            onToggleSelectItem={handleSelectItem}
             onClearSelection={handleClearMonthSelection}
           />
         </>
