@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Trash2, Download, Upload, Edit } from "lucide-react";
+import { Trash2, Download, Upload, Edit, Copy } from "lucide-react";
 
 interface BulkActionsToolbarProps {
   selectedCount: number;
@@ -7,6 +7,7 @@ interface BulkActionsToolbarProps {
   onBulkEdit: () => void;
   onExport: () => void;
   onImport: () => void;
+  onBulkCopyToGrade: () => void;
 }
 
 export function BulkActionsToolbar({
@@ -15,6 +16,7 @@ export function BulkActionsToolbar({
   onBulkEdit,
   onExport,
   onImport,
+  onBulkCopyToGrade,
 }: BulkActionsToolbarProps) {
   if (selectedCount === 0) return null;
 
@@ -30,6 +32,10 @@ export function BulkActionsToolbar({
         <Button variant="outline" size="sm" onClick={onBulkEdit} className="shadow-sm hover:shadow-md border-2">
           <Edit className="h-4 w-4 mr-2" />
           Bulk Edit
+        </Button>
+        <Button variant="outline" size="sm" onClick={onBulkCopyToGrade} className="shadow-sm hover:shadow-md border-2">
+          <Copy className="h-4 w-4 mr-2" />
+          Copy to Grade
         </Button>
         <Button variant="outline" size="sm" onClick={onExport} className="shadow-sm hover:shadow-md border-2">
           <Download className="h-4 w-4 mr-2" />

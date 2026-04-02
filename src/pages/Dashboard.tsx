@@ -17,6 +17,7 @@ import { BulkEditDialog } from "@/components/curriculum/BulkEditDialog";
 import { AdvancedSearch } from "@/components/curriculum/AdvancedSearch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CopyToGradeDialog } from "@/components/curriculum/CopyToGradeDialog";
 import {
   Select,
   SelectContent,
@@ -40,7 +41,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getApproxLessonDateFromWeek } from "@/utils/dateHelpers";
+import { getApproxLessonDateFromWeek, getWeekFromLessonDate } from "@/utils/dateHelpers";
 
 type SortField = "grade" | "week" | "title" | "topics" | "resources";
 type SortDirection = "asc" | "desc";
@@ -68,6 +69,7 @@ export function Dashboard() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
+  const [isCopyToGradeDialogOpen, setIsCopyToGradeDialogOpen] = useState(false);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
@@ -382,6 +384,11 @@ export function Dashboard() {
     setIsDeleteDialogOpen(true);
   };
 
+  const handleOpenCopyToGrade = () => {
+    if (selectedItems.length === 0) return;
+    setIsCopyToGradeDialogOpen(true);
+  };
+
   const confirmBulkDelete = async () => {
     try {
       if (selectedItems.length > 0) {
@@ -417,6 +424,36 @@ export function Dashboard() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleBulkCopyToGrade = async (targetGrade: GradeLevel) => {
+    if (selectedItems.length === 0) return;
+
+    const schoolYear = parseInt(selectedYear);
+    const itemsToCopy = items.filter((item) => selectedItems.includes(item.id));
+
+    const copyInputs: CurriculumItemInput[] = itemsToCopy.map((item) => {
+      const lessonDate =
+        item.lessonDate || getApproxLessonDateFromWeek(item.week, schoolYear);
+      const week = getWeekFromLessonDate(lessonDate, schoolYear);
+
+      return {
+        title: item.title,
+        description: item.description,
+        lessonDate,
+        week,
+        grade: targetGrade,
+        topics: item.topics,
+        resources: item.resources,
+      };
+    });
+
+    await curriculumService.bulkAdd(selectedYear, copyInputs, currentUser!.uid);
+
+    toast({
+      title: "Copied",
+      description: `Copied ${itemsToCopy.length} lesson(s) to Grade ${targetGrade}.`,
+    });
   };
 
   const handleBulkExport = () => {
@@ -775,6 +812,7 @@ export function Dashboard() {
         <>
           <BulkActionsToolbar
             selectedCount={selectedItems.length}
+            onBulkCopyToGrade={handleOpenCopyToGrade}
             onBulkDelete={handleBulkDelete}
             onBulkEdit={() => setIsBulkEditDialogOpen(true)}
             onExport={handleBulkExport}
@@ -928,6 +966,7 @@ export function Dashboard() {
             onEdit={handleEditItem}
             onDelete={handleDeleteItem}
             onBulkDelete={handleBulkDelete}
+            onBulkCopy={handleOpenCopyToGrade}
             onMoveItem={handleMoveItem}
             onMoveItems={handleMoveItems}
             selectedItemIds={selectedItems}
@@ -978,6 +1017,14 @@ export function Dashboard() {
         items={items}
         selectedItemIds={selectedItems}
         year={parseInt(selectedYear)}
+      />
+
+      <CopyToGradeDialog
+        open={isCopyToGradeDialogOpen}
+        onOpenChange={setIsCopyToGradeDialogOpen}
+        schoolYear={parseInt(selectedYear)}
+        items={items.filter((item) => selectedItems.includes(item.id))}
+        onConfirm={handleBulkCopyToGrade}
       />
 
       {/* Floating Action Button */}

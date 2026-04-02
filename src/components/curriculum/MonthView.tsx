@@ -32,6 +32,7 @@ import {
   Trash2,
   GripVertical,
   ArrowRightLeft,
+  Copy,
   Eye,
   AlertCircle,
   CheckSquare,
@@ -52,6 +53,7 @@ interface MonthViewProps {
   onEdit: (item: CurriculumItem) => void;
   onDelete: (id: string) => void;
   onBulkDelete?: () => void;
+  onBulkCopy?: () => void;
   onMoveItem?: (itemId: string, newWeek: number) => void;
   onMoveItems?: (itemIds: string[], newWeek: number) => void;
   selectedItemIds?: string[];
@@ -66,6 +68,7 @@ export function MonthView({
   onEdit,
   onDelete,
   onBulkDelete,
+  onBulkCopy,
   onMoveItem,
   onMoveItems,
   selectedItemIds = [],
@@ -225,6 +228,17 @@ export function MonthView({
               <ArrowRightLeft className="mr-2 h-4 w-4" />
               Move Selected
             </Button>
+            {onBulkCopy && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onBulkCopy}
+                className="shadow-sm hover:shadow-md"
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Copy Selected
+              </Button>
+            )}
             <Button
               variant="destructive"
               size="sm"
