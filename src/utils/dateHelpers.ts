@@ -1,4 +1,4 @@
-import { format, startOfYear, addWeeks, getMonth, getYear, addDays, getDay } from "date-fns";
+import { format, startOfYear, addWeeks, getMonth, getYear, addDays } from "date-fns";
 
 /**
  * Get the first Monday of April (school year start)

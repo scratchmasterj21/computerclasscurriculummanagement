@@ -8,7 +8,7 @@ import { YearSelector } from "@/components/curriculum/YearSelector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, FileText, BarChart3, TrendingUp, Calendar, BookOpen, Link2, Clock, AlertCircle } from "lucide-react";
+import { Download, FileText, BarChart3, TrendingUp, BookOpen, Link2, Clock, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
@@ -95,20 +95,6 @@ export function Analytics() {
     return Object.entries(analytics.itemsByTopicType).map(([type, count]) => ({
       type: type.charAt(0).toUpperCase() + type.slice(1),
       count,
-    }));
-  }, [analytics]);
-
-  const weekCoverageChartData = useMemo(() => {
-    if (!analytics) return [];
-    // Group by month for better visualization
-    const monthlyData: Record<number, number> = {};
-    analytics.weekCoverage.forEach((wc) => {
-      const month = Math.floor((wc.week - 1) / 4.33) + 1; // Approximate month
-      monthlyData[month] = (monthlyData[month] || 0) + wc.itemCount;
-    });
-    return Object.entries(monthlyData).map(([month, count]) => ({
-      month: `Month ${month}`,
-      items: count,
     }));
   }, [analytics]);
 
@@ -263,12 +249,14 @@ export function Analytics() {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ type, percent }) => `${type} ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }) =>
+                        `${String(name ?? "")} ${((percent ?? 0) * 100).toFixed(0)}%`
+                      }
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="count"
                     >
-                      {topicTypeChartData.map((entry, index) => (
+                      {topicTypeChartData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>

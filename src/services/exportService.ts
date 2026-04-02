@@ -85,11 +85,11 @@ export const exportService = {
       checkNewPage(30);
       
       doc.setFontSize(12);
-      doc.setFont(undefined, "bold");
+      doc.setFont("helvetica", "bold");
       doc.text(`${index + 1}. ${item.title}`, margin, yPos);
       yPos += 7;
       
-      doc.setFont(undefined, "normal");
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.text(`Grade ${item.grade} • Week ${item.week}`, margin + 5, yPos);
       yPos += 6;
@@ -131,7 +131,7 @@ export const exportService = {
 
     // Sheet 1: Summary
     const summaryData = [
-      ["Curriculum Report", year],
+      [title, year],
       ["Generated", new Date().toLocaleDateString()],
       [],
       ["Summary Statistics"],
@@ -372,7 +372,7 @@ export const exportService = {
 
     // Header row
     doc.setFontSize(10);
-    doc.setFont(undefined, "bold");
+    doc.setFont("helvetica", "bold");
     doc.rect(startX, yPos, gradeColWidth, 8, "F");
     doc.setTextColor(255, 255, 255);
     doc.text("Grade", startX + gradeColWidth / 2, yPos + 5, { align: "center" });
@@ -390,7 +390,7 @@ export const exportService = {
 
     // Grade rows
     doc.setFontSize(9);
-    doc.setFont(undefined, "normal");
+    doc.setFont("helvetica", "normal");
     let currentY = yPos;
 
     displayGrades.forEach((grade) => {
@@ -399,7 +399,7 @@ export const exportService = {
         doc.addPage();
         currentY = margin;
         // Redraw header
-        doc.setFont(undefined, "bold");
+        doc.setFont("helvetica", "bold");
         doc.rect(startX, currentY, gradeColWidth, 8, "F");
         doc.setTextColor(255, 255, 255);
         doc.text("Grade", startX + gradeColWidth / 2, currentY + 5, { align: "center" });
@@ -412,7 +412,7 @@ export const exportService = {
           doc.setTextColor(0, 0, 0);
         });
         currentY += 8;
-        doc.setFont(undefined, "normal");
+        doc.setFont("helvetica", "normal");
       }
 
       const rowHeight = 25; // Fixed row height for grade
@@ -488,6 +488,7 @@ export const exportService = {
     const monthViewData: any[][] = [];
     
     // Header row
+    monthViewData.push([title, `Academic Year ${year}`]);
     const headerRow = ["Grade", ...months.map((m) => m.name)];
     monthViewData.push(headerRow);
 

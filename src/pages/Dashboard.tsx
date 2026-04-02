@@ -16,17 +16,39 @@ import { CopyYearDialog } from "@/components/curriculum/CopyYearDialog";
 import { BulkEditDialog } from "@/components/curriculum/BulkEditDialog";
 import { AdvancedSearch } from "@/components/curriculum/AdvancedSearch";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToastAction } from "@/components/ui/toast";
-import { Plus, Calendar, List, Copy, RotateCcw, FileText, Download } from "lucide-react";
+import {
+  Plus,
+  Calendar,
+  List,
+  Copy,
+  RotateCcw,
+  FileText,
+  Download,
+  Search,
+  Filter,
+  ArrowRightLeft,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type SortField = "grade" | "week" | "title" | "topics" | "resources";
 type SortDirection = "asc" | "desc";
 
-interface DeletedItem {
-  item: CurriculumItem;
-  timestamp: number;
+interface MoveHistoryEntry {
+  itemId: string;
+  grade: number;
+  title: string;
+  fromWeek: number;
+  toWeek: number;
 }
 
 export function Dashboard() {
@@ -53,8 +75,13 @@ export function Dashboard() {
   const [gradeFilter, setGradeFilter] = useState<GradeLevel | "all">("all");
   const [weekRange, setWeekRange] = useState({ min: 1, max: 52 });
   const [topicTypeFilter, setTopicTypeFilter] = useState<TopicType | "all">("all");
-  const [deletedItems, setDeletedItems] = useState<DeletedItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [monthSelectedItems, setMonthSelectedItems] = useState<string[]>([]);
+  const [monthSearchQuery, setMonthSearchQuery] = useState("");
+  const [monthResourceFilter, setMonthResourceFilter] = useState<
+    "all" | "with-resources" | "without-resources"
+  >("all");
+  const [monthShowSelectedOnly, setMonthShowSelectedOnly] = useState(false);
 
   // Load curriculum data
   useEffect(() => {
@@ -164,6 +191,9 @@ export function Dashboard() {
     setGradeFilter("all");
     setWeekRange({ min: 1, max: 52 });
     setTopicTypeFilter("all");
+    setMonthSearchQuery("");
+    setMonthResourceFilter("all");
+    setMonthShowSelectedOnly(false);
   };
 
   // Week conflict detection
@@ -282,12 +312,6 @@ export function Dashboard() {
       if (deleteItemId) {
         const item = items.find((i) => i.id === deleteItemId);
         if (item) {
-          // Store for undo
-          setDeletedItems((prev) => [
-            ...prev,
-            { item, timestamp: Date.now() },
-          ]);
-
           await curriculumService.deleteCurriculumItem(
             selectedYear,
             deleteItemId,
@@ -360,12 +384,6 @@ export function Dashboard() {
           selectedItems.includes(item.id)
         );
         
-        // Store for undo
-        setDeletedItems((prev) => [
-          ...prev,
-          ...itemsToDelete.map((item) => ({ item, timestamp: Date.now() })),
-        ]);
-
         const deleteData = itemsToDelete.map((item) => ({
           id: item.id,
           grade: item.grade,
@@ -448,8 +466,53 @@ export function Dashboard() {
   };
 
   const handleSelectAll = (checked: boolean) => {
-    setSelectedItems(checked ? filteredItems.map((item) => item.id) : []);
+    setSelectedItems(checked ? filteredAndSortedItems.map((item) => item.id) : []);
   };
+
+  const handleToggleMonthSelectItem = (id: string) => {
+    setMonthSelectedItems((prev) =>
+      prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
+    );
+  };
+
+  const handleClearMonthSelection = () => {
+    setMonthSelectedItems([]);
+    setMonthShowSelectedOnly(false);
+  };
+
+  const visibleMonthItems = useMemo(() => {
+    let filtered = filteredAndSortedItems;
+
+    if (monthSearchQuery.trim()) {
+      const query = monthSearchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (item) =>
+          item.title.toLowerCase().includes(query) ||
+          item.description.toLowerCase().includes(query) ||
+          item.topics.some((topic) => topic.name.toLowerCase().includes(query))
+      );
+    }
+
+    if (monthResourceFilter === "with-resources") {
+      filtered = filtered.filter((item) => item.resources.length > 0);
+    }
+
+    if (monthResourceFilter === "without-resources") {
+      filtered = filtered.filter((item) => item.resources.length === 0);
+    }
+
+    if (monthShowSelectedOnly) {
+      filtered = filtered.filter((item) => monthSelectedItems.includes(item.id));
+    }
+
+    return filtered;
+  }, [
+    filteredAndSortedItems,
+    monthSearchQuery,
+    monthResourceFilter,
+    monthShowSelectedOnly,
+    monthSelectedItems,
+  ]);
 
   const handleCopyYear = async (targetYear: string) => {
     setIsCopying(true);
@@ -480,29 +543,107 @@ export function Dashboard() {
     }
   };
 
-  const handleMoveItem = async (itemId: string, newWeek: number) => {
+  const applyMoveEntries = async (
+    entries: MoveHistoryEntry[],
+    {
+      allowUndo = true,
+      clearSelection = false,
+    }: { allowUndo?: boolean; clearSelection?: boolean } = {}
+  ) => {
     try {
-      const item = items.find((i) => i.id === itemId);
-      if (!item) return;
-
-      await curriculumService.updateCurriculumItem(
-        selectedYear,
-        itemId,
-        item.grade,
-        { week: newWeek }
+      await Promise.all(
+        entries.map((entry) =>
+          curriculumService.updateCurriculumItem(selectedYear, entry.itemId, entry.grade, {
+            week: entry.toWeek,
+          })
+        )
       );
-      
+
+      const targetWeeks = new Set(entries.map((entry) => `${entry.grade}-${entry.toWeek}`));
+      const conflicts = items.filter(
+        (item) =>
+          !entries.some((entry) => entry.itemId === item.id) &&
+          targetWeeks.has(`${item.grade}-${item.week}`)
+      ).length;
+
       toast({
-        title: "Moved",
-        description: `Item moved to Week ${newWeek}.`,
+        title: entries.length === 1 ? "Lesson moved" : "Lessons moved",
+        description:
+          conflicts > 0
+            ? `${entries.length} lesson${entries.length === 1 ? "" : "s"} moved. ${conflicts} existing lesson${conflicts === 1 ? "" : "s"} already in the target week.`
+            : `${entries.length} lesson${entries.length === 1 ? "" : "s"} moved successfully.`,
+        action:
+          allowUndo && entries.length > 0 ? (
+            <ToastAction
+              altText="Undo move"
+              onClick={() =>
+                applyMoveEntries(
+                  entries.map((entry) => ({
+                    ...entry,
+                    fromWeek: entry.toWeek,
+                    toWeek: entry.fromWeek,
+                  })),
+                  { allowUndo: false }
+                )
+              }
+            >
+              <RotateCcw className="mr-1 h-3 w-3" />
+              Undo
+            </ToastAction>
+          ) : undefined,
       });
+
+      if (clearSelection) {
+        handleClearMonthSelection();
+      }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to move item",
+        description: error.message || "Failed to move lesson",
         variant: "destructive",
       });
     }
+  };
+
+  const handleMoveItem = async (itemId: string, newWeek: number) => {
+    const item = items.find((entry) => entry.id === itemId);
+    if (!item) return;
+
+    await applyMoveEntries([
+      {
+        itemId: item.id,
+        grade: item.grade,
+        title: item.title,
+        fromWeek: item.week,
+        toWeek: newWeek,
+      },
+    ]);
+  };
+
+  const handleMoveItems = async (itemIds: string[], newWeek: number) => {
+    const moveItems = items.filter((item) => itemIds.includes(item.id));
+    if (moveItems.length === 0) return;
+
+    const grade = moveItems[0].grade;
+    if (!moveItems.every((item) => item.grade === grade)) {
+      toast({
+        title: "Selection mismatch",
+        description: "Select lessons from a single grade before moving them together.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    await applyMoveEntries(
+      moveItems.map((item) => ({
+        itemId: item.id,
+        grade: item.grade,
+        title: item.title,
+        fromWeek: item.week,
+        toWeek: newWeek,
+      })),
+      { clearSelection: true }
+    );
   };
 
   const handleBulkEdit = async (updates: { itemId: string; week: number }[]) => {
@@ -665,65 +806,124 @@ export function Dashboard() {
 
       {viewMode === "month" && (
         <>
-          <div className="flex items-center justify-end gap-2 mb-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                try {
-                  exportService.exportMonthViewToPDF(
-                    filteredAndSortedItems,
-                    parseInt(selectedYear),
-                    selectedGrade
-                  );
-                  toast({
-                    title: "Exported",
-                    description: "Month view PDF has been generated and downloaded.",
-                  });
-                } catch (error: any) {
-                  toast({
-                    title: "Error",
-                    description: error.message || "Failed to export PDF",
-                    variant: "destructive",
-                  });
-                }
-              }}
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Export PDF
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                try {
-                  exportService.exportMonthViewToExcel(
-                    filteredAndSortedItems,
-                    parseInt(selectedYear),
-                    selectedGrade
-                  );
-                  toast({
-                    title: "Exported",
-                    description: "Month view Excel has been generated and downloaded.",
-                  });
-                } catch (error: any) {
-                  toast({
-                    title: "Error",
-                    description: error.message || "Failed to export Excel",
-                    variant: "destructive",
-                  });
-                }
-              }}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export Excel
-            </Button>
+          <div className="mb-4 space-y-3 rounded-lg border bg-card p-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative min-w-[240px] flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={monthSearchQuery}
+                  onChange={(e) => setMonthSearchQuery(e.target.value)}
+                  placeholder="Search visible month cards..."
+                  className="pl-9"
+                />
+              </div>
+              <div className="min-w-[200px]">
+                <Select value={monthResourceFilter} onValueChange={(value) => setMonthResourceFilter(value as typeof monthResourceFilter)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Resources" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All lessons</SelectItem>
+                    <SelectItem value="with-resources">With resources</SelectItem>
+                    <SelectItem value="without-resources">Without resources</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                variant={monthShowSelectedOnly ? "default" : "outline"}
+                onClick={() => setMonthShowSelectedOnly((prev) => !prev)}
+                disabled={monthSelectedItems.length === 0}
+              >
+                <Filter className="mr-2 h-4 w-4" />
+                Selected Only
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm text-muted-foreground">
+                Showing {visibleMonthItems.length} lesson{visibleMonthItems.length === 1 ? "" : "s"}
+                {monthSelectedItems.length > 0
+                  ? ` • ${monthSelectedItems.length} selected`
+                  : ""}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    try {
+                      exportService.exportMonthViewToPDF(
+                        visibleMonthItems,
+                        parseInt(selectedYear),
+                        selectedGrade,
+                        "Curriculum Month View"
+                      );
+                      toast({
+                        title: "Exported",
+                        description: "Month view PDF has been generated from the current visible view.",
+                      });
+                    } catch (error: any) {
+                      toast({
+                        title: "Error",
+                        description: error.message || "Failed to export PDF",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Export PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    try {
+                      exportService.exportMonthViewToExcel(
+                        visibleMonthItems,
+                        parseInt(selectedYear),
+                        selectedGrade,
+                        "Curriculum Month View"
+                      );
+                      toast({
+                        title: "Exported",
+                        description: "Month view Excel has been generated from the current visible view.",
+                      });
+                    } catch (error: any) {
+                      toast({
+                        title: "Error",
+                        description: error.message || "Failed to export Excel",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Excel
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={
+                    monthSelectedItems.length === 0 ||
+                    !visibleMonthItems.some((item) => monthSelectedItems.includes(item.id))
+                  }
+                  onClick={handleClearMonthSelection}
+                >
+                  <ArrowRightLeft className="mr-2 h-4 w-4" />
+                  Clear Month Selection
+                </Button>
+              </div>
+            </div>
           </div>
           <MonthView
-            items={filteredAndSortedItems}
+            items={visibleMonthItems}
             year={parseInt(selectedYear)}
             selectedGrade={selectedGrade}
             onEdit={handleEditItem}
             onDelete={handleDeleteItem}
             onMoveItem={handleMoveItem}
+            onMoveItems={handleMoveItems}
+            selectedItemIds={monthSelectedItems}
+            onToggleSelectItem={handleToggleMonthSelectItem}
+            onClearSelection={handleClearMonthSelection}
           />
         </>
       )}

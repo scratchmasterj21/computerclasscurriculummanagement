@@ -153,10 +153,6 @@ export const analyticsService = {
     year1: string,
     year2: string
   ): ComparisonData => {
-    // Create maps for quick lookup
-    const year1Map = new Map(year1Items.map((item) => [item.id, item]));
-    const year2Map = new Map(year2Items.map((item) => [item.id, item]));
-
     // Find items by matching title, grade, and week (since IDs differ between years)
     const year1ByKey = new Map(
       year1Items.map((item) => [`${item.grade}-${item.week}-${item.title}`, item])

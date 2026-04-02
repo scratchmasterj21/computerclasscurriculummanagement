@@ -33,7 +33,6 @@ export function BulkEditDialog({
   onConfirm,
   items,
   selectedItemIds,
-  year,
 }: BulkEditDialogProps) {
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
   const selectedItems = items.filter((item) => selectedItemIds.includes(item.id));

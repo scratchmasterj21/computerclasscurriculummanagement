@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, FileText, Plus, Minus, Edit, CheckCircle2, ArrowRight } from "lucide-react";
+import { FileText, Plus, Minus, Edit, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Table,
@@ -26,8 +26,6 @@ export function Comparison() {
   const currentYear = new Date().getFullYear().toString();
   const [year1, setYear1] = useState((parseInt(currentYear) - 1).toString());
   const [year2, setYear2] = useState(currentYear);
-  const [year1Items, setYear1Items] = useState<CurriculumItem[]>([]);
-  const [year2Items, setYear2Items] = useState<CurriculumItem[]>([]);
   const [comparison, setComparison] = useState<ComparisonData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -53,9 +51,6 @@ export function Comparison() {
         loadYear(year1),
         loadYear(year2),
       ]);
-
-      setYear1Items(items1);
-      setYear2Items(items2);
 
       if (items1.length > 0 || items2.length > 0) {
         const comparisonData = analyticsService.compareYears(
