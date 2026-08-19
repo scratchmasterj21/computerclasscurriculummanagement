@@ -76,16 +76,14 @@ export function getMonthFromWeek(weekNumber: number, year: number): number {
   // School year starts on the first Monday of April
   const firstMonday = getFirstMondayOfApril(year);
   
-  // Each week is 7 days (standard calendar week)
-  // Calculate the date for the middle of the week (day 4 = Thursday)
-  const daysIntoYear = (weekNumber - 1) * 7; // Total days up to start of this week
-  const middleOfWeek = daysIntoYear + 4; // Thursday (day 4 of the 7-day week)
+  // Use the same Monday date that is stored when a lesson is moved by week.
+  // Keeping these calculations identical prevents boundary weeks from being
+  // displayed in a different month than their saved lesson date.
+  const daysIntoYear = (weekNumber - 1) * 7;
+  const targetDate = addDays(firstMonday, daysIntoYear);
   
-  // Calculate the target date
-  const targetDate = addDays(firstMonday, middleOfWeek);
-  
-  let monthIndex = getMonth(targetDate);
-  let monthYear = getYear(targetDate);
+  const monthIndex = getMonth(targetDate);
+  const monthYear = getYear(targetDate);
   
   // If we're in the next calendar year but before April, it's part of the school year
   // Map January (0), February (1), March (2) to the school year months
@@ -189,7 +187,8 @@ export function getWeeksForMonth(monthIndex: number, year: number): number[] {
  */
 export function getWeekForMonth(monthIndex: number, year: number): number {
   // Use the middle of the month to determine the week
-  const monthDate = new Date(year, monthIndex, 15); // 15th of the month
+  const calendarYear = monthIndex < 3 ? year + 1 : year;
+  const monthDate = new Date(calendarYear, monthIndex, 15); // 15th of the month
   const firstMonday = getFirstMondayOfApril(year);
   
   // Calculate days difference
@@ -234,4 +233,3 @@ export function getLastWeekForMonth(monthIndex: number, year: number): number {
   // Fallback to middle of month
   return getWeekForMonth(monthIndex, year);
 }
-

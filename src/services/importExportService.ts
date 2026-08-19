@@ -15,6 +15,10 @@ export const importExportService = {
               const item: CurriculumItemInput = {
                 title: row.title || "",
                 description: row.description || "",
+                unit: row.unit || "",
+                objectives: row.objectives
+                  ? row.objectives.split("|").map((value: string) => value.trim()).filter(Boolean)
+                  : [],
                 lessonDate:
                   row.lessonDate || getApproxLessonDateFromWeek(parseInt(row.week) || 1, new Date().getFullYear()),
                 week: parseInt(row.week) || 1,
@@ -85,6 +89,8 @@ export const importExportService = {
           const validatedItems: CurriculumItemInput[] = items.map((item: any) => ({
             title: item.title || "",
             description: item.description || "",
+            unit: item.unit || "",
+            objectives: item.objectives || [],
             lessonDate:
               item.lessonDate || getApproxLessonDateFromWeek(parseInt(item.week) || 1, new Date().getFullYear()),
             week: parseInt(item.week) || 1,
@@ -152,6 +158,8 @@ export const importExportService = {
       lessonDate: item.lessonDate,
       title: item.title,
       description: item.description,
+      unit: item.unit || "",
+      objectives: (item.objectives || []).join(" | "),
       topics: JSON.stringify(item.topics),
       resources: JSON.stringify(item.resources),
     }));
@@ -186,4 +194,3 @@ function isValidUrl(string: string): boolean {
     return false;
   }
 }
-

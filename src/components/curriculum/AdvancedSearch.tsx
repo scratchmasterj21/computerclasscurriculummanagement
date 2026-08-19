@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Search, X, Filter } from "lucide-react";
-import { GradeLevel, TopicType } from "@/types/curriculum";
+import { TopicType } from "@/types/curriculum";
 import {
   Dialog,
   DialogContent,
@@ -24,8 +24,6 @@ import {
 interface AdvancedSearchProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  gradeFilter: GradeLevel | "all";
-  onGradeFilterChange: (grade: GradeLevel | "all") => void;
   weekRange: { min: number; max: number };
   onWeekRangeChange: (range: { min: number; max: number }) => void;
   topicTypeFilter: TopicType | "all";
@@ -36,8 +34,6 @@ interface AdvancedSearchProps {
 export function AdvancedSearch({
   searchQuery,
   onSearchChange,
-  gradeFilter,
-  onGradeFilterChange,
   weekRange,
   onWeekRangeChange,
   topicTypeFilter,
@@ -46,7 +42,6 @@ export function AdvancedSearch({
 }: AdvancedSearchProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const hasActiveFilters = 
-    gradeFilter !== "all" || 
     weekRange.min !== 1 || 
     weekRange.max !== 52 || 
     topicTypeFilter !== "all";
@@ -56,6 +51,7 @@ export function AdvancedSearch({
       <div className="relative flex-1 max-w-md">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          id="curriculum-search"
           placeholder="Search curriculum..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
@@ -87,30 +83,6 @@ export function AdvancedSearch({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="grade-filter">Grade</Label>
-              <Select
-                value={gradeFilter.toString()}
-                onValueChange={(value) =>
-                  onGradeFilterChange(
-                    value === "all" ? "all" : (parseInt(value) as GradeLevel)
-                  )
-                }
-              >
-                <SelectTrigger id="grade-filter">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Grades</SelectItem>
-                  {[1, 2, 3, 4, 5, 6].map((grade) => (
-                    <SelectItem key={grade} value={grade.toString()}>
-                      Grade {grade}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             <div>
               <Label>Week Range</Label>
               <div className="flex items-center gap-2">

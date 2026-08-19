@@ -118,12 +118,12 @@ export function Comparison() {
 
       <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/30 border">
         <div className="flex-1">
-          <label className="text-sm font-medium mb-2 block">Year 1</label>
+          <label className="text-sm font-medium mb-2 block">From school year</label>
           <YearSelector selectedYear={year1} onYearChange={setYear1} />
         </div>
         <ArrowRight className="h-5 w-5 text-muted-foreground mt-6" />
         <div className="flex-1">
-          <label className="text-sm font-medium mb-2 block">Year 2</label>
+          <label className="text-sm font-medium mb-2 block">To school year</label>
           <YearSelector selectedYear={year2} onYearChange={setYear2} />
         </div>
       </div>

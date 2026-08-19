@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   Table,
   TableBody,
@@ -10,7 +10,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { CurriculumItem, TopicType } from "@/types/curriculum";
-import { Edit, Trash2, ChevronDown, ChevronRight, ArrowUpDown, ExternalLink } from "lucide-react";
+import { Edit, Trash2, ChevronDown, ChevronRight, ArrowUpDown, ExternalLink, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatLessonDate, getApproxLessonDateFromWeek } from "@/utils/dateHelpers";
 
@@ -24,6 +24,9 @@ interface CurriculumTableProps {
   onDuplicate?: (item: CurriculumItem) => void;
   sortConfig?: { field: string; direction: "asc" | "desc" };
   onSort?: (field: string) => void;
+  groupBy?: "none" | "grade" | "unit" | "month" | "topic";
+  year?: number;
+  searchQuery?: string;
 }
 
 const topicTypeColors: Record<TopicType, string> = {
@@ -44,6 +47,9 @@ export function CurriculumTable({
   onDuplicate,
   sortConfig,
   onSort,
+  groupBy = "none",
+  year = new Date().getFullYear(),
+  searchQuery = "",
 }: CurriculumTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const allSelected = items.length > 0 && selectedItems.length === items.length;
@@ -58,6 +64,14 @@ export function CurriculumTable({
       }
       return next;
     });
+  };
+
+  const highlight = (text: string) => {
+    const query = searchQuery.trim();
+    if (!query) return text;
+    const index = text.toLowerCase().indexOf(query.toLowerCase());
+    if (index < 0) return text;
+    return <>{text.slice(0, index)}<mark className="rounded bg-yellow-200 px-0.5">{text.slice(index, index + query.length)}</mark>{text.slice(index + query.length)}</>;
   };
 
   const SortableHeader = ({ field, children }: { field: string; children: React.ReactNode }) => {
@@ -111,20 +125,34 @@ export function CurriculumTable({
             <TableRow>
               <TableCell colSpan={7} className="h-32 text-center">
                 <div className="flex flex-col items-center justify-center gap-2 py-4">
-                  <div className="text-muted-foreground text-lg">No curriculum items found</div>
+                  <div className="text-muted-foreground text-lg">No lessons match this view</div>
                   <div className="text-sm text-muted-foreground">
-                    Click "Add Item" to get started or adjust your filters.
+                    Clear your search or filters, or add a new lesson.
                   </div>
                 </div>
               </TableCell>
             </TableRow>
           ) : (
-            items.map((item) => {
+            items.map((item, index) => {
               const isExpanded = expandedRows.has(item.id);
+              const groupLabel = groupBy === "grade" ? `Grade ${item.grade}`
+                : groupBy === "unit" ? (item.unit || "No unit")
+                : groupBy === "month" ? new Date(`${item.lessonDate || getApproxLessonDateFromWeek(item.week, year)}T00:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+                : groupBy === "topic" ? (item.topics[0]?.type || "Other")
+                : "";
+              const previous = items[index - 1];
+              const previousLabel = !previous ? "" : groupBy === "grade" ? `Grade ${previous.grade}`
+                : groupBy === "unit" ? (previous.unit || "No unit")
+                : groupBy === "month" ? new Date(`${previous.lessonDate || getApproxLessonDateFromWeek(previous.week, year)}T00:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+                : groupBy === "topic" ? (previous.topics[0]?.type || "Other") : "";
               return (
-                <>
+                <Fragment key={item.id}>
+                  {groupBy !== "none" && groupLabel !== previousLabel && (
+                    <TableRow className="bg-muted/60 hover:bg-muted/60">
+                      <TableCell colSpan={7} className="py-2 text-sm font-semibold">{groupLabel}</TableCell>
+                    </TableRow>
+                  )}
                   <TableRow 
-                    key={item.id}
                     className="hover:bg-primary/5 transition-colors border-b border-border/50 cursor-pointer"
                     onClick={() => toggleRow(item.id)}
                   >
@@ -159,10 +187,24 @@ export function CurriculumTable({
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         )}
                         <div>
-                          <div className="font-semibold text-foreground">{item.title}</div>
+                          <div className="font-semibold text-foreground">{highlight(item.title)}</div>
+                          {item.unit && (
+                            <div className="mt-1 text-xs font-medium text-primary">{highlight(item.unit)}</div>
+                          )}
+                          {searchQuery && (item.objectives || []).some((objective) => objective.toLowerCase().includes(searchQuery.toLowerCase())) && <div className="mt-1 text-[11px] text-amber-700">Matched a learning objective</div>}
                           {item.description && (
                             <div className="text-sm text-muted-foreground line-clamp-1 mt-1">
                               {item.description}
+                            </div>
+                          )}
+                          {item.objectives && item.objectives.length > 0 && (
+                            <div>
+                              <h4 className="mb-2 text-sm font-semibold">Learning Objectives</h4>
+                              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                                {item.objectives.map((objective, index) => (
+                                  <li key={index}>{objective}</li>
+                                ))}
+                              </ul>
                             </div>
                           )}
                         </div>
@@ -182,32 +224,29 @@ export function CurriculumTable({
                       <div className="flex justify-end gap-2">
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="sm"
                           onClick={() => onEdit(item)}
                           className="hover:bg-primary/10 hover:text-primary"
-                          title="Edit"
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit className="mr-1 h-4 w-4" /> Edit
                         </Button>
                         {onDuplicate && (
                           <Button
                             variant="ghost"
-                            size="icon"
+                            size="sm"
                             onClick={() => onDuplicate(item)}
                             className="hover:bg-blue-10 hover:text-blue-600"
-                            title="Duplicate"
                           >
-                            <ChevronRight className="h-4 w-4 rotate-90" />
+                            <Copy className="mr-1 h-4 w-4" /> Copy
                           </Button>
                         )}
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="sm"
                           onClick={() => onDelete(item.id)}
                           className="hover:bg-destructive/10 hover:text-destructive"
-                          title="Delete"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="mr-1 h-4 w-4" /> Delete
                         </Button>
                       </div>
                     </TableCell>
@@ -278,7 +317,7 @@ export function CurriculumTable({
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </Fragment>
               );
             })
           )}
@@ -287,4 +326,3 @@ export function CurriculumTable({
     </div>
   );
 }
-

@@ -16,6 +16,12 @@
             "description": {
               ".validate": "newData.isString()"
             },
+            "unit": {
+              ".validate": "newData.isString() || newData.val() == null"
+            },
+            "objectives": {
+              ".validate": "newData.hasChildren() || newData.val() == null"
+            },
             "lessonDate": {
               ".validate": "newData.isString() || newData.val() == null"
             },
@@ -49,4 +55,3 @@
     }
   }
 }
-

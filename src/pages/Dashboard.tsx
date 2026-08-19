@@ -16,8 +16,13 @@ import { CopyYearDialog } from "@/components/curriculum/CopyYearDialog";
 import { BulkEditDialog } from "@/components/curriculum/BulkEditDialog";
 import { AdvancedSearch } from "@/components/curriculum/AdvancedSearch";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { CopyToGradeDialog } from "@/components/curriculum/CopyToGradeDialog";
+import { BackupRestoreDialog } from "@/components/curriculum/BackupRestoreDialog";
+import { UnitManagerDialog } from "@/components/curriculum/UnitManagerDialog";
+import { TemplateManagerDialog } from "@/components/curriculum/TemplateManagerDialog";
+import { AttentionPanel, AttentionFilter } from "@/components/curriculum/AttentionPanel";
+import { KeyboardHelpDialog } from "@/components/curriculum/KeyboardHelpDialog";
 import {
   Select,
   SelectContent,
@@ -35,13 +40,16 @@ import {
   RotateCcw,
   FileText,
   Download,
-  Search,
   Filter,
   ArrowRightLeft,
   Trash2,
+  DatabaseBackup,
+  Settings2,
+  LayoutTemplate,
+  HelpCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getApproxLessonDateFromWeek, getWeekFromLessonDate } from "@/utils/dateHelpers";
+import { getApproxLessonDateFromWeek, getWeekForMonth, getWeekFromLessonDate, isDateInSchoolYear } from "@/utils/dateHelpers";
 
 type SortField = "grade" | "week" | "title" | "topics" | "resources";
 type SortDirection = "asc" | "desc";
@@ -52,18 +60,36 @@ interface MoveHistoryEntry {
   title: string;
   fromWeek: number;
   toWeek: number;
+  fromDate: string;
+  toDate: string;
+}
+
+interface SavedView {
+  id: string;
+  name: string;
+  year: string;
+  grade: GradeLevel | "all";
+  unit: string;
+  view: "week" | "month";
+  weekRange: { min: number; max: number };
+  topicType: TopicType | "all";
 }
 
 export function Dashboard() {
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const currentYear = new Date().getFullYear().toString();
-  const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [selectedGrade, setSelectedGrade] = useState<GradeLevel | "all">("all");
-  const [viewMode, setViewMode] = useState<"week" | "month">("week");
+  const [selectedYear, setSelectedYear] = useState(() => localStorage.getItem("curriculum-selected-year") || currentYear);
+  const [selectedGrade, setSelectedGrade] = useState<GradeLevel | "all">(() => {
+    const saved = localStorage.getItem("curriculum-selected-grade");
+    return saved && saved !== "all" ? (Number(saved) as GradeLevel) : "all";
+  });
+  const [viewMode, setViewMode] = useState<"week" | "month">(() =>
+    localStorage.getItem("curriculum-view-mode") === "month" ? "month" : "week"
+  );
   const [items, setItems] = useState<CurriculumItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem("curriculum-search") || "");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CurriculumItem | undefined>();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -72,19 +98,49 @@ export function Dashboard() {
   const [isCopyToGradeDialogOpen, setIsCopyToGradeDialogOpen] = useState(false);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
+  const [isBackupDialogOpen, setIsBackupDialogOpen] = useState(false);
+  const [isUnitManagerOpen, setIsUnitManagerOpen] = useState(false);
+  const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
+  const [isKeyboardHelpOpen, setIsKeyboardHelpOpen] = useState(false);
+  const [defaultTemplateId, setDefaultTemplateId] = useState("");
+  const [unitColors, setUnitColors] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem("curriculum-unit-colors") || "{}"); } catch { return {}; }
+  });
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
   
   // New state for advanced features
   const [sortConfig, setSortConfig] = useState<{ field: SortField; direction: SortDirection } | null>(null);
-  const [gradeFilter, setGradeFilter] = useState<GradeLevel | "all">("all");
-  const [weekRange, setWeekRange] = useState({ min: 1, max: 52 });
-  const [topicTypeFilter, setTopicTypeFilter] = useState<TopicType | "all">("all");
+  const [weekRange, setWeekRange] = useState<{ min: number; max: number }>(() => {
+    try { return JSON.parse(localStorage.getItem("curriculum-week-range") || '{"min":1,"max":52}'); } catch { return { min: 1, max: 52 }; }
+  });
+  const [unitFilter, setUnitFilter] = useState(() => localStorage.getItem("curriculum-unit-filter") || "all");
+  const [groupBy, setGroupBy] = useState<"none" | "grade" | "unit" | "month" | "topic">("none");
+  const [attentionFilter, setAttentionFilter] = useState<AttentionFilter>("none");
+  const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
+    try { return JSON.parse(localStorage.getItem("curriculum-saved-views") || "[]"); } catch { return []; }
+  });
+  const [activeSavedViewId, setActiveSavedViewId] = useState("");
+  const [topicTypeFilter, setTopicTypeFilter] = useState<TopicType | "all">(() => (localStorage.getItem("curriculum-topic-filter") as TopicType | "all") || "all");
   const [isLoading, setIsLoading] = useState(false);
-  const [monthSearchQuery, setMonthSearchQuery] = useState("");
   const [monthResourceFilter, setMonthResourceFilter] = useState<
     "all" | "with-resources" | "without-resources"
   >("all");
   const [monthShowSelectedOnly, setMonthShowSelectedOnly] = useState(false);
+  const [newLessonDefaults, setNewLessonDefaults] = useState<{
+    grade?: GradeLevel;
+    lessonDate?: string;
+    unit?: string;
+  }>({});
+
+  useEffect(() => {
+    localStorage.setItem("curriculum-selected-year", selectedYear);
+    localStorage.setItem("curriculum-selected-grade", String(selectedGrade));
+    localStorage.setItem("curriculum-view-mode", viewMode);
+    localStorage.setItem("curriculum-unit-filter", unitFilter);
+    localStorage.setItem("curriculum-search", searchQuery);
+    localStorage.setItem("curriculum-week-range", JSON.stringify(weekRange));
+    localStorage.setItem("curriculum-topic-filter", topicTypeFilter);
+  }, [selectedYear, selectedGrade, viewMode, unitFilter, searchQuery, weekRange, topicTypeFilter]);
 
   // Load curriculum data
   useEffect(() => {
@@ -104,6 +160,12 @@ export function Dashboard() {
     return () => unsubscribe();
   }, [selectedYear, selectedGrade, currentUser]);
 
+  // Keep bulk actions limited to the year and grade currently on screen.
+  useEffect(() => {
+    setSelectedItems([]);
+    setMonthShowSelectedOnly(false);
+  }, [selectedYear, selectedGrade]);
+
   // Filter and sort items
   const filteredAndSortedItems = useMemo(() => {
     let filtered = items;
@@ -115,14 +177,11 @@ export function Dashboard() {
         (item) =>
           item.title.toLowerCase().includes(query) ||
           item.description.toLowerCase().includes(query) ||
+          (item.unit || "").toLowerCase().includes(query) ||
+          (item.objectives || []).some((objective) => objective.toLowerCase().includes(query)) ||
           item.topics.some((topic) => topic.name.toLowerCase().includes(query)) ||
           item.resources.some((resource) => resource.name.toLowerCase().includes(query))
       );
-    }
-
-    // Grade filter
-    if (gradeFilter !== "all") {
-      filtered = filtered.filter((item) => item.grade === gradeFilter);
     }
 
     // Week range filter
@@ -130,11 +189,35 @@ export function Dashboard() {
       (item) => item.week >= weekRange.min && item.week <= weekRange.max
     );
 
+    if (unitFilter !== "all") {
+      filtered = filtered.filter((item) => item.unit === unitFilter);
+    }
+
     // Topic type filter
     if (topicTypeFilter !== "all") {
       filtered = filtered.filter((item) =>
         item.topics.some((topic) => topic.type === topicTypeFilter)
       );
+    }
+
+    if (attentionFilter !== "none") {
+      const dateCounts = new Map<string, number>();
+      const unitCounts = new Map<string, number>();
+      const weekCounts = new Map<string, number>();
+      items.forEach((item) => {
+        const dateKey = `${item.grade}|${item.lessonDate || item.week}`;
+        dateCounts.set(dateKey, (dateCounts.get(dateKey) || 0) + 1);
+        if (item.unit) unitCounts.set(item.unit, (unitCounts.get(item.unit) || 0) + 1);
+        weekCounts.set(`${item.grade}|${item.week}`, (weekCounts.get(`${item.grade}|${item.week}`) || 0) + 1);
+      });
+      filtered = filtered.filter((item) => attentionFilter === "objectives" ? !item.objectives?.length
+        : attentionFilter === "resources" ? !item.resources.length
+        : attentionFilter === "conflicts" ? (dateCounts.get(`${item.grade}|${item.lessonDate || item.week}`) || 0) > 1
+        : attentionFilter === "dates" ? Boolean(item.lessonDate && !isDateInSchoolYear(item.lessonDate, parseInt(selectedYear)))
+        : attentionFilter === "single-unit" ? Boolean(item.unit && unitCounts.get(item.unit) === 1)
+        : attentionFilter === "theory-only" ? !item.topics.some((topic) => topic.type === "lab" || topic.type === "project")
+        : attentionFilter === "overloaded" ? (weekCounts.get(`${item.grade}|${item.week}`) || 0) >= 3
+        : item.resources.some((resource) => { try { new URL(resource.url); return false; } catch { return true; } }));
     }
 
     // Sorting
@@ -175,7 +258,21 @@ export function Dashboard() {
     }
 
     return filtered;
-  }, [items, searchQuery, gradeFilter, weekRange, topicTypeFilter, sortConfig]);
+  }, [attentionFilter, items, searchQuery, selectedYear, weekRange, unitFilter, topicTypeFilter, sortConfig]);
+
+  const availableUnits = useMemo(
+    () => [...new Set(items.map((item) => item.unit).filter((unit): unit is string => Boolean(unit)))].sort(),
+    [items]
+  );
+
+  const groupedListItems = useMemo(() => {
+    if (groupBy === "none") return filteredAndSortedItems;
+    const groupKey = (item: CurriculumItem) => groupBy === "grade" ? String(item.grade)
+      : groupBy === "unit" ? (item.unit || "No unit")
+      : groupBy === "month" ? (item.lessonDate || getApproxLessonDateFromWeek(item.week, parseInt(selectedYear))).slice(0, 7)
+      : (item.topics[0]?.type || "other");
+    return [...filteredAndSortedItems].sort((a, b) => groupKey(a).localeCompare(groupKey(b)) || a.week - b.week);
+  }, [filteredAndSortedItems, groupBy, selectedYear]);
 
   const handleSort = (field: string) => {
     setSortConfig((current) => {
@@ -191,12 +288,39 @@ export function Dashboard() {
 
   const handleClearFilters = () => {
     setSearchQuery("");
-    setGradeFilter("all");
     setWeekRange({ min: 1, max: 52 });
+    setUnitFilter("all");
     setTopicTypeFilter("all");
-    setMonthSearchQuery("");
     setMonthResourceFilter("all");
     setMonthShowSelectedOnly(false);
+    setAttentionFilter("none");
+  };
+
+  const saveCurrentView = () => {
+    const name = window.prompt("Name this curriculum view:");
+    if (!name?.trim()) return;
+    const view: SavedView = {
+      id: String(Date.now()), name: name.trim(), year: selectedYear, grade: selectedGrade,
+      unit: unitFilter, view: viewMode, weekRange, topicType: topicTypeFilter,
+    };
+    const next = [...savedViews, view];
+    setSavedViews(next);
+    localStorage.setItem("curriculum-saved-views", JSON.stringify(next));
+  };
+
+  const applySavedView = (id: string) => {
+    const view = savedViews.find((entry) => entry.id === id);
+    if (!view) return;
+    setActiveSavedViewId(id);
+    setSelectedYear(view.year); setSelectedGrade(view.grade); setUnitFilter(view.unit);
+    setViewMode(view.view); setWeekRange(view.weekRange); setTopicTypeFilter(view.topicType);
+  };
+
+  const deleteActiveSavedView = () => {
+    if (!activeSavedViewId) return;
+    const next = savedViews.filter((view) => view.id !== activeSavedViewId);
+    setSavedViews(next); setActiveSavedViewId("");
+    localStorage.setItem("curriculum-saved-views", JSON.stringify(next));
   };
 
   // Week conflict detection
@@ -214,6 +338,23 @@ export function Dashboard() {
 
   const handleAddItem = () => {
     setEditingItem(undefined);
+    setDefaultTemplateId("");
+    setNewLessonDefaults({
+      grade: selectedGrade === "all" ? undefined : selectedGrade,
+      unit: unitFilter === "all" ? undefined : unitFilter,
+    });
+    setIsFormOpen(true);
+  };
+
+  const handleAddLessonToMonth = (grade: GradeLevel, monthIndex: number) => {
+    const week = getWeekForMonth(monthIndex, parseInt(selectedYear));
+    setEditingItem(undefined);
+    setDefaultTemplateId("");
+    setNewLessonDefaults({
+      grade,
+      lessonDate: getApproxLessonDateFromWeek(week, parseInt(selectedYear)),
+      unit: unitFilter === "all" ? undefined : unitFilter,
+    });
     setIsFormOpen(true);
   };
 
@@ -233,13 +374,10 @@ export function Dashboard() {
       
       if (conflicts.length > 0) {
         const conflictTitles = conflicts.map((c) => c.title).join(", ");
-        toast({
-          title: "Week Conflict Detected",
-          description: `Week ${data.week} already has ${conflicts.length} item(s): ${conflictTitles}. Continue anyway?`,
-          variant: "destructive",
-        });
-        // For now, we'll proceed but show the warning
-        // In a full implementation, you might want a confirmation dialog
+        const proceed = window.confirm(
+          `This schedule conflicts with ${conflicts.length} lesson${conflicts.length === 1 ? "" : "s"}: ${conflictTitles}.\n\nSave this lesson anyway?`
+        );
+        if (!proceed) return false;
       }
 
       if (editingItem) {
@@ -264,14 +402,15 @@ export function Dashboard() {
           description: "Curriculum item has been created.",
         });
       }
-      setIsFormOpen(false);
       setEditingItem(undefined);
+      return true;
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to save item",
         variant: "destructive",
       });
+      return false;
     }
   };
 
@@ -280,6 +419,8 @@ export function Dashboard() {
       const duplicateData: CurriculumItemInput = {
         title: `${item.title} (Copy)`,
         description: item.description,
+        unit: item.unit || "",
+        objectives: item.objectives || [],
         lessonDate:
           item.lessonDate || getApproxLessonDateFromWeek(item.week, parseInt(selectedYear)),
         week: item.week,
@@ -351,6 +492,8 @@ export function Dashboard() {
       const itemData: CurriculumItemInput = {
         title: item.title,
         description: item.description,
+        unit: item.unit || "",
+        objectives: item.objectives || [],
         lessonDate:
           item.lessonDate || getApproxLessonDateFromWeek(item.week, parseInt(selectedYear)),
         week: item.week,
@@ -440,6 +583,8 @@ export function Dashboard() {
       return {
         title: item.title,
         description: item.description,
+        unit: item.unit || "",
+        objectives: item.objectives || [],
         lessonDate,
         week,
         grade: targetGrade,
@@ -520,16 +665,6 @@ export function Dashboard() {
   const visibleMonthItems = useMemo(() => {
     let filtered = filteredAndSortedItems;
 
-    if (monthSearchQuery.trim()) {
-      const query = monthSearchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (item) =>
-          item.title.toLowerCase().includes(query) ||
-          item.description.toLowerCase().includes(query) ||
-          item.topics.some((topic) => topic.name.toLowerCase().includes(query))
-      );
-    }
-
     if (monthResourceFilter === "with-resources") {
       filtered = filtered.filter((item) => item.resources.length > 0);
     }
@@ -545,7 +680,6 @@ export function Dashboard() {
     return filtered;
   }, [
     filteredAndSortedItems,
-    monthSearchQuery,
     monthResourceFilter,
     monthShowSelectedOnly,
     selectedItems,
@@ -580,6 +714,23 @@ export function Dashboard() {
     }
   };
 
+  const handleUnitColorChange = (unit: string, color: string) => {
+    setUnitColors((current) => {
+      const next = { ...current, [unit]: color };
+      localStorage.setItem("curriculum-unit-colors", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleRenameUnit = async (from: string, to: string) => {
+    const affected = items.filter((item) => item.unit === from);
+    await Promise.all(
+      affected.map((item) => curriculumService.updateCurriculumItem(selectedYear, item.id, item.grade, { unit: to }))
+    );
+    if (unitColors[from]) handleUnitColorChange(to, unitColors[from]);
+    toast({ title: "Unit updated", description: `${affected.length} lessons now use ${to}.` });
+  };
+
   const applyMoveEntries = async (
     entries: MoveHistoryEntry[],
     {
@@ -591,6 +742,7 @@ export function Dashboard() {
       await Promise.all(
         entries.map((entry) =>
           curriculumService.updateCurriculumItem(selectedYear, entry.itemId, entry.grade, {
+            lessonDate: entry.toDate,
             week: entry.toWeek,
           })
         )
@@ -619,6 +771,8 @@ export function Dashboard() {
                     ...entry,
                     fromWeek: entry.toWeek,
                     toWeek: entry.fromWeek,
+                    fromDate: entry.toDate,
+                    toDate: entry.fromDate,
                   })),
                   { allowUndo: false }
                 )
@@ -653,6 +807,9 @@ export function Dashboard() {
         title: item.title,
         fromWeek: item.week,
         toWeek: newWeek,
+        fromDate:
+          item.lessonDate || getApproxLessonDateFromWeek(item.week, parseInt(selectedYear)),
+        toDate: getApproxLessonDateFromWeek(newWeek, parseInt(selectedYear)),
       },
     ]);
   };
@@ -678,6 +835,9 @@ export function Dashboard() {
         title: item.title,
         fromWeek: item.week,
         toWeek: newWeek,
+        fromDate:
+          item.lessonDate || getApproxLessonDateFromWeek(item.week, parseInt(selectedYear)),
+        toDate: getApproxLessonDateFromWeek(newWeek, parseInt(selectedYear)),
       })),
       { clearSelection: true }
     );
@@ -715,6 +875,37 @@ export function Dashboard() {
     }
   };
 
+  const selectedCurriculumItems = () => items.filter((item) => selectedItems.includes(item.id));
+
+  const handleBulkAssignUnit = async () => {
+    const unit = window.prompt("Assign selected lessons to which unit?");
+    if (!unit?.trim()) return;
+    await Promise.all(selectedCurriculumItems().map((item) => curriculumService.updateCurriculumItem(selectedYear, item.id, item.grade, { unit: unit.trim() })));
+    toast({ title: "Unit assigned", description: `${selectedItems.length} lessons updated.` });
+  };
+
+  const handleBulkShiftWeeks = async () => {
+    const raw = window.prompt("Shift selected lessons by how many weeks? Use a negative number to move earlier.", "1");
+    if (raw === null) return;
+    const offset = Number(raw);
+    if (!Number.isInteger(offset) || offset === 0) return;
+    await Promise.all(selectedCurriculumItems().map((item) => {
+      const date = new Date(`${item.lessonDate || getApproxLessonDateFromWeek(item.week, parseInt(selectedYear))}T00:00:00`);
+      date.setDate(date.getDate() + offset * 7);
+      const lessonDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      return curriculumService.updateCurriculumItem(selectedYear, item.id, item.grade, { lessonDate });
+    }));
+    toast({ title: "Dates shifted", description: `${selectedItems.length} lessons moved by ${offset} weeks.` });
+  };
+
+  const handleBulkAddResource = async () => {
+    const name = window.prompt("Resource name:"); if (!name?.trim()) return;
+    const url = window.prompt("Resource URL:"); if (!url?.trim()) return;
+    try { new URL(url); } catch { toast({ title: "Invalid URL", description: "Enter a complete URL including https://", variant: "destructive" }); return; }
+    await Promise.all(selectedCurriculumItems().map((item) => curriculumService.updateCurriculumItem(selectedYear, item.id, item.grade, { resources: [...item.resources, { name: name.trim(), url: url.trim(), type: "link" }] })));
+    toast({ title: "Resource added", description: `Added to ${selectedItems.length} lessons.` });
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -730,12 +921,18 @@ export function Dashboard() {
       const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       const modKey = isMac ? e.metaKey : e.ctrlKey;
 
-      if (modKey && e.key === "n") {
+      if ((modKey && e.key === "n") || (!modKey && e.key.toLowerCase() === "n")) {
         e.preventDefault();
         handleAddItem();
       } else if (modKey && e.key === "f") {
         e.preventDefault();
-        // Focus search - would need a ref for this
+        document.getElementById("curriculum-search")?.focus();
+      } else if (e.key === "/") {
+        e.preventDefault();
+        document.getElementById("curriculum-search")?.focus();
+      } else if (e.key === "?") {
+        e.preventDefault();
+        setIsKeyboardHelpOpen(true);
       } else if (e.key === "Delete" && selectedItems.length > 0) {
         e.preventDefault();
         handleBulkDelete();
@@ -752,8 +949,13 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-primary/5 via-background to-background border-2 border-primary/10 shadow-sm">
-        <div className="flex items-center gap-4 flex-wrap">
+      <div className="space-y-1">
+        <h1 className="text-3xl font-bold tracking-tight">Curriculum</h1>
+        <p className="text-muted-foreground">Find, plan, and manage your computer class lessons.</p>
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 shadow-sm lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-wrap items-end gap-4">
           <YearSelector
             selectedYear={selectedYear}
             onYearChange={setSelectedYear}
@@ -762,11 +964,23 @@ export function Dashboard() {
             selectedGrade={selectedGrade}
             onGradeChange={setSelectedGrade}
           />
+          <div className="flex items-center gap-2">
+            <Label htmlFor="unit-filter">Unit:</Label>
+            <Select value={unitFilter} onValueChange={setUnitFilter}>
+              <SelectTrigger id="unit-filter" className="w-[190px]">
+                <SelectValue placeholder="All Units" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Units</SelectItem>
+                {availableUnits.map((unit) => (
+                  <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <AdvancedSearch
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            gradeFilter={gradeFilter}
-            onGradeFilterChange={setGradeFilter}
             weekRange={weekRange}
             onWeekRangeChange={setWeekRange}
             topicTypeFilter={topicTypeFilter}
@@ -774,42 +988,87 @@ export function Dashboard() {
             onClearFilters={handleClearFilters}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={() => setIsKeyboardHelpOpen(true)} title="Keyboard shortcuts"><HelpCircle className="h-4 w-4" /></Button>
+          <Button variant="outline" onClick={() => setIsTemplateManagerOpen(true)} className="shadow-sm">
+            <LayoutTemplate className="mr-2 h-4 w-4" /> Templates
+          </Button>
+          <Button variant="outline" onClick={() => setIsUnitManagerOpen(true)} className="shadow-sm">
+            <Settings2 className="mr-2 h-4 w-4" /> Units
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setIsBackupDialogOpen(true)}
+            className="shadow-sm"
+          >
+            <DatabaseBackup className="mr-2 h-4 w-4" />
+            Backup
+          </Button>
           <Button
             variant="outline"
             onClick={() => setIsCopyDialogOpen(true)}
             className="shadow-sm hover:shadow-md transition-shadow border-2"
           >
             <Copy className="h-4 w-4 mr-2" />
-            Copy to Next Year
+            Copy School Year
           </Button>
           <Button 
             onClick={handleAddItem}
             className="shadow-md hover:shadow-lg transition-shadow"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Add Item
+            Add Lesson
           </Button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border">
+      <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "week" | "month")}>
           <TabsList className="bg-background shadow-sm">
             <TabsTrigger value="week" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <List className="h-4 w-4 mr-2" />
-              Week View
+              List
             </TabsTrigger>
             <TabsTrigger value="month" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Calendar className="h-4 w-4 mr-2" />
-              Month View
+              Year Planner
             </TabsTrigger>
           </TabsList>
         </Tabs>
+        <div className="text-sm">
+          <span className="font-medium">{selectedYear}–{parseInt(selectedYear) + 1}</span>
+          <span className="text-muted-foreground"> · {selectedGrade === "all" ? "All grades" : `Grade ${selectedGrade}`} · {filteredAndSortedItems.length} of {items.length} lessons</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => handleSelectAll(true)} disabled={!filteredAndSortedItems.length}>Select Visible</Button>
+          <Button variant="ghost" size="sm" onClick={handleClearMonthSelection} disabled={!selectedItems.length}>Clear Selection</Button>
+          {savedViews.length > 0 && (
+            <Select value={activeSavedViewId} onValueChange={applySavedView}>
+              <SelectTrigger className="w-[170px]"><SelectValue placeholder="Saved views" /></SelectTrigger>
+              <SelectContent>{savedViews.map((view) => <SelectItem key={view.id} value={view.id}>{view.name}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+          <Button variant="outline" size="sm" onClick={saveCurrentView}>Save View</Button>
+          <Button variant="ghost" size="sm" onClick={deleteActiveSavedView} disabled={!activeSavedViewId}>Delete View</Button>
+        </div>
       </div>
+
+      <AttentionPanel items={items} year={parseInt(selectedYear)} active={attentionFilter} onSelect={setAttentionFilter} />
 
       {viewMode === "week" && (
         <>
+          <div className="flex justify-end">
+            <Select value={groupBy} onValueChange={(value) => setGroupBy(value as typeof groupBy)}>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Group lessons" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No grouping</SelectItem>
+                <SelectItem value="grade">Group by grade</SelectItem>
+                <SelectItem value="unit">Group by unit</SelectItem>
+                <SelectItem value="month">Group by month</SelectItem>
+                <SelectItem value="topic">Group by activity type</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <BulkActionsToolbar
             selectedCount={selectedItems.length}
             onBulkCopyToGrade={handleOpenCopyToGrade}
@@ -817,6 +1076,9 @@ export function Dashboard() {
             onBulkEdit={() => setIsBulkEditDialogOpen(true)}
             onExport={handleBulkExport}
             onImport={() => setIsImportDialogOpen(true)}
+            onAssignUnit={handleBulkAssignUnit}
+            onShiftWeeks={handleBulkShiftWeeks}
+            onAddResource={handleBulkAddResource}
           />
 
           {isLoading ? (
@@ -828,7 +1090,7 @@ export function Dashboard() {
             </div>
           ) : (
             <CurriculumTable
-              items={filteredAndSortedItems}
+              items={groupedListItems}
               selectedItems={selectedItems}
               onSelectItem={handleSelectItem}
               onSelectAll={handleSelectAll}
@@ -837,6 +1099,9 @@ export function Dashboard() {
               onDuplicate={handleDuplicate}
               sortConfig={sortConfig ? { field: sortConfig.field, direction: sortConfig.direction } : undefined}
               onSort={handleSort}
+              groupBy={groupBy}
+              year={parseInt(selectedYear)}
+              searchQuery={searchQuery}
             />
           )}
         </>
@@ -844,17 +1109,13 @@ export function Dashboard() {
 
       {viewMode === "month" && (
         <>
+          {selectedGrade === "all" && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+              You are viewing every grade. Choose one grade above for a simpler planning view and to move several lessons together.
+            </div>
+          )}
           <div className="mb-4 space-y-3 rounded-lg border bg-card p-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="relative min-w-[240px] flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={monthSearchQuery}
-                  onChange={(e) => setMonthSearchQuery(e.target.value)}
-                  placeholder="Search visible month cards..."
-                  className="pl-9"
-                />
-              </div>
               <div className="min-w-[200px]">
                 <Select value={monthResourceFilter} onValueChange={(value) => setMonthResourceFilter(value as typeof monthResourceFilter)}>
                   <SelectTrigger>
@@ -972,6 +1233,8 @@ export function Dashboard() {
             selectedItemIds={selectedItems}
             onToggleSelectItem={handleSelectItem}
             onClearSelection={handleClearMonthSelection}
+            onAddLesson={handleAddLessonToMonth}
+            unitColors={unitColors}
           />
         </>
       )}
@@ -982,6 +1245,10 @@ export function Dashboard() {
         onSubmit={handleFormSubmit}
         initialData={editingItem}
         schoolYear={parseInt(selectedYear)}
+        defaultGrade={newLessonDefaults.grade}
+        defaultLessonDate={newLessonDefaults.lessonDate}
+        defaultUnit={newLessonDefaults.unit}
+        defaultTemplateId={defaultTemplateId}
       />
 
       <DeleteConfirmDialog
@@ -1027,6 +1294,39 @@ export function Dashboard() {
         onConfirm={handleBulkCopyToGrade}
       />
 
+      <BackupRestoreDialog
+        open={isBackupDialogOpen}
+        onOpenChange={setIsBackupDialogOpen}
+        userId={currentUser!.uid}
+        onComplete={(message) => toast({ title: "Backup", description: message })}
+      />
+
+      <UnitManagerDialog
+        open={isUnitManagerOpen}
+        onOpenChange={setIsUnitManagerOpen}
+        items={items}
+        colors={unitColors}
+        onColorChange={handleUnitColorChange}
+        onRename={handleRenameUnit}
+      />
+
+      <TemplateManagerDialog
+        open={isTemplateManagerOpen}
+        onOpenChange={setIsTemplateManagerOpen}
+        onUse={(templateId) => {
+          setDefaultTemplateId(templateId);
+          setEditingItem(undefined);
+          setNewLessonDefaults({
+            grade: selectedGrade === "all" ? undefined : selectedGrade,
+            unit: unitFilter === "all" ? undefined : unitFilter,
+          });
+          setIsTemplateManagerOpen(false);
+          setIsFormOpen(true);
+        }}
+      />
+
+      <KeyboardHelpDialog open={isKeyboardHelpOpen} onOpenChange={setIsKeyboardHelpOpen} />
+
       {/* Floating Action Button */}
       <Button
         onClick={handleAddItem}
@@ -1039,4 +1339,3 @@ export function Dashboard() {
     </div>
   );
 }
-

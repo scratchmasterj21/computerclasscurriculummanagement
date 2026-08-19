@@ -22,8 +22,9 @@ function normalizePartialCurriculumInput(
   const schoolYear = parseInt(year);
   const lessonDate =
     updates.lessonDate ??
-    currentItem.lessonDate ??
-    (updates.week ? getApproxLessonDateFromWeek(updates.week, schoolYear) : getApproxLessonDateFromWeek(currentItem.week, schoolYear));
+    (updates.week !== undefined
+      ? getApproxLessonDateFromWeek(updates.week, schoolYear)
+      : currentItem.lessonDate ?? getApproxLessonDateFromWeek(currentItem.week, schoolYear));
 
   return {
     ...updates,
@@ -36,6 +37,66 @@ function normalizePartialCurriculumInput(
 }
 
 export const curriculumService = {
+  exportBackup: async () => {
+    const snapshot = await get(ref(database, "curriculum"));
+    return {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      curriculum: snapshot.val() || {},
+    };
+  },
+
+  restoreBackupMerge: async (
+    backup: { version: number; curriculum: Record<string, unknown> },
+    userId: string
+  ): Promise<number> => {
+    if (backup?.version !== 1 || !backup.curriculum || typeof backup.curriculum !== "object") {
+      throw new Error("This is not a supported curriculum backup file.");
+    }
+
+    const existingSnapshot = await get(ref(database, "curriculum"));
+    const existingData = existingSnapshot.val() || {};
+    const existingKeys = new Set<string>();
+    Object.entries(existingData).forEach(([year, rawGrades]) => {
+      Object.entries((rawGrades || {}) as Record<string, unknown>).forEach(([grade, rawItems]) => {
+        Object.values((rawItems || {}) as Record<string, Partial<CurriculumItem>>).forEach((item) => {
+          existingKeys.add(`${year}|${grade}|${item.lessonDate || item.week}|${item.title}|${item.unit || ""}`);
+        });
+      });
+    });
+
+    let restoredCount = 0;
+    for (const [year, rawGrades] of Object.entries(backup.curriculum)) {
+      if (!/^\d{4}$/.test(year) || !rawGrades || typeof rawGrades !== "object") continue;
+      for (const [gradeKey, rawItems] of Object.entries(rawGrades as Record<string, unknown>)) {
+        const grade = Number(gradeKey);
+        if (grade < 1 || grade > 6 || !rawItems || typeof rawItems !== "object") continue;
+        for (const rawItem of Object.values(rawItems as Record<string, unknown>)) {
+          if (!rawItem || typeof rawItem !== "object") continue;
+          const item = rawItem as Partial<CurriculumItem>;
+          if (!item.title || !item.week) continue;
+          const duplicateKey = `${year}|${grade}|${item.lessonDate || item.week}|${item.title}|${item.unit || ""}`;
+          if (existingKeys.has(duplicateKey)) continue;
+          const input: CurriculumItemInput = {
+            title: item.title,
+            description: item.description || "",
+            unit: item.unit || "",
+            objectives: item.objectives || [],
+            lessonDate: item.lessonDate || getApproxLessonDateFromWeek(item.week, Number(year)),
+            week: item.week,
+            grade: grade as CurriculumItem["grade"],
+            topics: item.topics || [],
+            resources: item.resources || [],
+          };
+          await curriculumService.addCurriculumItem(year, input, userId);
+          existingKeys.add(duplicateKey);
+          restoredCount += 1;
+        }
+      }
+    }
+    return restoredCount;
+  },
+
   // Get curriculum for a year (and optionally a grade) with real-time listener
   getCurriculum: (
     year: string,
@@ -295,6 +356,8 @@ export const curriculumService = {
               id: newItemRef.key!,
               title: item.title,
               description: item.description || "",
+              unit: item.unit || "",
+              objectives: item.objectives || [],
               lessonDate:
                 item.lessonDate || getApproxLessonDateFromWeek(item.week, parseInt(targetYear)),
               week: getWeekFromLessonDate(
@@ -355,4 +418,3 @@ export const curriculumService = {
     return updatedCount;
   },
 };
-

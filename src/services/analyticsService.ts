@@ -193,6 +193,15 @@ export const analyticsService = {
         if (year1Item.description !== item.description) {
           changes.push("Description changed");
         }
+        if ((year1Item.unit || "") !== (item.unit || "")) {
+          changes.push("Unit changed");
+        }
+        if (
+          JSON.stringify([...(year1Item.objectives || [])].sort()) !==
+          JSON.stringify([...(item.objectives || [])].sort())
+        ) {
+          changes.push("Learning objectives changed");
+        }
         if (year1Item.topics.length !== item.topics.length) {
           changes.push(`Topics count changed (${year1Item.topics.length} → ${item.topics.length})`);
         }

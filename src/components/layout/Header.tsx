@@ -27,24 +27,24 @@ export function Header() {
   };
 
   const navItems = [
-    { path: "/", label: "Dashboard", icon: LayoutDashboard },
+    { path: "/", label: "Curriculum", icon: LayoutDashboard },
     { path: "/analytics", label: "Analytics", icon: BarChart3 },
     { path: "/comparison", label: "Comparison", icon: GitCompare },
   ];
 
   return (
     <header className="border-b bg-gradient-to-r from-primary/10 via-background to-background shadow-sm">
-      <div className="container flex h-16 items-center justify-between px-4">
-        <div className="flex items-center gap-6">
+      <div className="container flex min-h-16 flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-4 lg:gap-6">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-sm">CM</span>
             </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            <h1 className="hidden text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent sm:block">
               Curriculum Management System
             </h1>
           </div>
-          <nav className="flex items-center gap-1">
+          <nav className="flex items-center gap-1 overflow-x-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
@@ -67,7 +67,7 @@ export function Header() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground font-medium">
+          <span className="hidden text-sm text-muted-foreground font-medium xl:inline">
             {currentUser?.email}
           </span>
           <Button variant="outline" size="sm" onClick={handleLogout} className="shadow-sm">
@@ -79,4 +79,3 @@ export function Header() {
     </header>
   );
 }
-

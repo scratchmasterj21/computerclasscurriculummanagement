@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CurriculumItem, GradeLevel } from "@/types/curriculum";
 import {
   getSchoolYearMonths,
@@ -36,6 +36,9 @@ import {
   Eye,
   AlertCircle,
   CheckSquare,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   Table,
@@ -59,7 +62,11 @@ interface MonthViewProps {
   selectedItemIds?: string[];
   onToggleSelectItem?: (id: string) => void;
   onClearSelection?: () => void;
+  onAddLesson?: (grade: GradeLevel, monthIndex: number) => void;
+  unitColors?: Record<string, string>;
 }
+
+const GRADES: GradeLevel[] = [1, 2, 3, 4, 5, 6];
 
 export function MonthView({
   items,
@@ -74,10 +81,14 @@ export function MonthView({
   selectedItemIds = [],
   onToggleSelectItem,
   onClearSelection,
+  onAddLesson,
+  unitColors = {},
 }: MonthViewProps) {
   const months = getSchoolYearMonths(year);
-  const grades: GradeLevel[] = [1, 2, 3, 4, 5, 6];
-  const displayGrades = selectedGrade === "all" ? grades : [selectedGrade];
+  const displayGrades = useMemo(
+    () => (selectedGrade === "all" ? GRADES : [selectedGrade]),
+    [selectedGrade]
+  );
   const [draggedItem, setDraggedItem] = useState<CurriculumItem | null>(null);
   const [dragOverCell, setDragOverCell] = useState<string | null>(null);
   const [invalidDragCell, setInvalidDragCell] = useState<string | null>(null);
@@ -87,11 +98,21 @@ export function MonthView({
   const [moveMonthValue, setMoveMonthValue] = useState<string>("");
   const [showBatchMove, setShowBatchMove] = useState(false);
   const [batchMoveMonthValue, setBatchMoveMonthValue] = useState<string>("");
+  const plannerRef = useRef<HTMLDivElement>(null);
+  const [jumpMonth, setJumpMonth] = useState(String(new Date().getMonth()));
+
+  const jumpToMonth = (monthIndex: string) => {
+    setJumpMonth(monthIndex);
+    plannerRef.current
+      ?.querySelector(`[data-month-index="${monthIndex}"]`)
+      ?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  };
 
   const selectedMonthItems = useMemo(
     () => items.filter((item) => selectedItemIds.includes(item.id)),
     [items, selectedItemIds]
   );
+  const previewIndex = previewItem ? items.findIndex((item) => item.id === previewItem.id) : -1;
 
   const selectedMonthGrade =
     selectedMonthItems.length > 0 &&
@@ -205,6 +226,26 @@ export function MonthView({
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card p-3">
+        <div className="text-sm font-medium">Planner navigation</div>
+        <div className="flex items-center gap-2">
+          <Select value={jumpMonth} onValueChange={jumpToMonth}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Jump to month" />
+            </SelectTrigger>
+            <SelectContent>
+              {months.map((month) => (
+                <SelectItem key={`jump-${month.monthIndex}`} value={String(month.monthIndex)}>
+                  {month.name} {month.year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => jumpToMonth(String(new Date().getMonth()))}>
+            Current Month
+          </Button>
+        </div>
+      </div>
       {selectedMonthItems.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
           <div className="flex items-center gap-2 text-sm">
@@ -254,7 +295,7 @@ export function MonthView({
         </div>
       )}
 
-      <div className="rounded-lg border-2 border-border/50 bg-card shadow-lg overflow-x-auto">
+      <div ref={plannerRef} className="rounded-lg border-2 border-border/50 bg-card shadow-lg overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50 hover:bg-muted/50">
@@ -266,7 +307,8 @@ export function MonthView({
               return (
               <TableHead
                 key={`${month.year}-${month.monthIndex}`}
-                className="min-w-[200px] text-center bg-gradient-to-b from-primary/5 to-transparent border-r"
+                data-month-index={month.monthIndex}
+                className={`min-w-[200px] text-center bg-gradient-to-b from-primary/5 to-transparent border-r ${month.monthIndex === new Date().getMonth() && month.year === new Date().getFullYear() ? "ring-2 ring-inset ring-primary/40" : ""}`}
               >
                 <div className="flex flex-col py-2">
                   <span className="font-bold text-primary">{month.name}</span>
@@ -338,7 +380,20 @@ export function MonthView({
                     <div className="space-y-2 min-h-[88px]">
                       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                         <span>{monthItems.length} lessons</span>
-                        <span>{cellTopicCount} topics</span>
+                        <div className="flex items-center gap-1">
+                          <span>{cellTopicCount} topics</span>
+                          {onAddLesson && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => onAddLesson(grade, month.monthIndex)}
+                              title={`Add lesson to ${month.name}`}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       {monthItems.length === 0 ? (
                         <div className={`text-xs text-center py-4 font-medium rounded-lg border-2 border-dashed transition-colors ${
@@ -406,97 +461,64 @@ export function MonthView({
                                   setInvalidDragCell(null);
                                   setDropPosition(null);
                                 }}
-                                className={`group relative p-3 rounded-lg border-2 bg-gradient-to-br from-card to-card/50 hover:border-primary/40 hover:shadow-md transition-all duration-200 cursor-move ${
+                                className={`group relative h-[68px] rounded-lg border-2 bg-gradient-to-br from-card to-card/50 p-2 hover:border-primary/40 transition-colors duration-200 cursor-move ${
                                   draggedItem?.id === item.id ? "opacity-50" : ""
                                 } ${isDropBelow ? "border-primary/60 bg-primary/5" : "border-primary/20"} ${
                                   isSelected ? "ring-2 ring-primary/40 border-primary/40" : ""
                                 }`}
                                 onClick={() => setPreviewItem(item)}
+                                style={item.unit && unitColors[item.unit] ? { borderLeftColor: unitColors[item.unit], borderLeftWidth: 4 } : undefined}
+                                tabIndex={0}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    setPreviewItem(item);
+                                  }
+                                }}
                               >
-                                <div className="space-y-1.5">
-                                  <div className="flex items-start gap-2">
-                                    <div
-                                      className="mt-0.5 flex items-center gap-2"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <Checkbox
-                                        checked={isSelected}
-                                        onCheckedChange={() => onToggleSelectItem?.(item.id)}
-                                        aria-label={`Select ${item.title}`}
-                                      />
-                                      <GripVertical className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                    </div>
-                                    <div className="flex-1">
-                                      <div className="font-semibold text-sm text-foreground leading-tight">
-                                        {item.title}
-                                      </div>
-                                      {item.description && (
-                                        <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mt-1">
-                                          {item.description}
-                                        </div>
-                                      )}
-                                    </div>
+                                <div className="flex h-full items-start gap-2">
+                                  <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={() => onToggleSelectItem?.(item.id)}
+                                      aria-label={`Select ${item.title}`}
+                                    />
+                                    <GripVertical className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                                   </div>
-                                  <div className="flex items-center gap-1.5 text-xs">
-                                    <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="line-clamp-2 text-sm font-semibold leading-tight text-foreground">{item.title}</div>
+                                    <span className="mt-1 inline-block rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
                                       Week {item.week}
-                                    </span>
-                                    <span className="text-muted-foreground">
-                                      {formatLessonDate(
-                                        item.lessonDate || getApproxLessonDateFromWeek(item.week, year)
-                                      )}
-                                    </span>
-                                    <span className="text-muted-foreground">
-                                      {item.topics.length} topic{item.topics.length !== 1 ? "s" : ""}
-                                    </span>
-                                    <span className="text-muted-foreground">
-                                      {item.resources.length} resource{item.resources.length !== 1 ? "s" : ""}
                                     </span>
                                   </div>
                                 </div>
                                 <div
-                                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity"
+                                  className="pointer-events-none absolute -inset-x-0.5 -top-0.5 z-30 translate-y-1 rounded-lg border-2 border-primary/40 bg-card p-3 opacity-0 shadow-xl transition-all group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100"
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                                    onClick={() => setPreviewItem(item)}
-                                    title="Preview"
-                                  >
-                                    <Eye className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                                    onClick={() => {
-                                      setMoveItem(item);
-                                      setMoveMonthValue(String(month.monthIndex));
-                                    }}
-                                    title="Move to..."
-                                  >
-                                    <ArrowRightLeft className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                                    onClick={() => onEdit(item)}
-                                    title="Edit"
-                                  >
-                                    <Edit className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
-                                    onClick={() => onDelete(item.id)}
-                                    title="Delete"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                  <div className="flex items-start gap-2">
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={() => onToggleSelectItem?.(item.id)}
+                                      aria-label={`Select ${item.title}`}
+                                    />
+                                    <GripVertical className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                    <div className="text-sm font-semibold leading-tight">{item.title}</div>
+                                  </div>
+                                  {item.unit && <div className="mt-1 text-xs font-medium text-primary">{item.unit}</div>}
+                                  {item.description && <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.description}</div>}
+                                  <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                                    <span className="font-medium text-primary">Week {item.week}</span>
+                                    <span>{formatLessonDate(item.lessonDate || getApproxLessonDateFromWeek(item.week, year))}</span>
+                                    <span>{item.topics.length} topic{item.topics.length !== 1 ? "s" : ""}</span>
+                                    <span>{item.resources.length} resource{item.resources.length !== 1 ? "s" : ""}</span>
+                                  </div>
+                                  <div className="mt-2 flex gap-1 border-t pt-2">
+                                    <Button variant="ghost" size="icon" className="h-7 flex-1" onClick={() => setPreviewItem(item)} aria-label={`View ${item.title}`} title="View lesson"><Eye className="h-3.5 w-3.5" /></Button>
+                                    <Button variant="ghost" size="icon" className="h-7 flex-1" onClick={() => { setMoveItem(item); setMoveMonthValue(String(month.monthIndex)); }} aria-label={`Move ${item.title}`} title="Move lesson"><ArrowRightLeft className="h-3.5 w-3.5" /></Button>
+                                    <Button variant="ghost" size="icon" className="h-7 flex-1" onClick={() => onEdit(item)} aria-label={`Edit ${item.title}`} title="Edit lesson"><Edit className="h-3.5 w-3.5" /></Button>
+                                    <Button variant="ghost" size="icon" className="h-7 flex-1 hover:text-destructive" onClick={() => onDelete(item.id)} aria-label={`Delete ${item.title}`} title="Delete lesson"><Trash2 className="h-3.5 w-3.5" /></Button>
+                                  </div>
                                 </div>
                               </div>
                           {index === monthItems.length - 1 && (
@@ -550,7 +572,7 @@ export function MonthView({
       </div>
 
       <Dialog open={Boolean(previewItem)} onOpenChange={(open) => !open && setPreviewItem(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="left-auto right-0 top-0 h-full max-w-md translate-x-0 translate-y-0 overflow-y-auto rounded-none">
           <DialogHeader>
             <DialogTitle>{previewItem?.title}</DialogTitle>
             <DialogDescription>
@@ -559,12 +581,28 @@ export function MonthView({
           </DialogHeader>
           {previewItem && (
             <div className="space-y-4 text-sm">
+              {previewItem.unit && (
+                <div>
+                  <h4 className="font-medium">Unit</h4>
+                  <p className="mt-1 text-muted-foreground">{previewItem.unit}</p>
+                </div>
+              )}
               <div>
                 <h4 className="font-medium">Description</h4>
                 <p className="mt-1 text-muted-foreground">
                   {previewItem.description || "No description."}
                 </p>
               </div>
+              {previewItem.objectives && previewItem.objectives.length > 0 && (
+                <div>
+                  <h4 className="font-medium">Learning Objectives</h4>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                    {previewItem.objectives.map((objective, index) => (
+                      <li key={index}>{objective}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div>
                 <h4 className="font-medium">Topics</h4>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -596,6 +634,11 @@ export function MonthView({
               </div>
             </div>
           )}
+          <DialogFooter className="sticky bottom-0 border-t bg-background pt-3">
+            <Button variant="outline" size="sm" disabled={previewIndex <= 0} onClick={() => setPreviewItem(items[previewIndex - 1])}><ChevronLeft className="mr-1 h-4 w-4" />Previous</Button>
+            <Button variant="outline" size="sm" onClick={() => previewItem && onEdit(previewItem)}><Edit className="mr-1 h-4 w-4" />Edit</Button>
+            <Button variant="outline" size="sm" disabled={previewIndex < 0 || previewIndex >= items.length - 1} onClick={() => setPreviewItem(items[previewIndex + 1])}>Next<ChevronRight className="ml-1 h-4 w-4" /></Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -671,4 +714,3 @@ export function MonthView({
     </div>
   );
 }
-

@@ -84,6 +84,8 @@ export function BulkImportDialog({
       const validatedItems: CurriculumItemInput[] = items.map((item: any) => ({
         title: item.title || "",
         description: item.description || "",
+        unit: item.unit || "",
+        objectives: item.objectives || [],
         lessonDate:
           item.lessonDate || getApproxLessonDateFromWeek(parseInt(item.week) || 1, new Date().getFullYear()),
         week: parseInt(item.week) || 1,
@@ -232,4 +234,3 @@ export function BulkImportDialog({
     </Dialog>
   );
 }
-

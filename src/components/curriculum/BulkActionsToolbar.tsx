@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Trash2, Download, Upload, Edit, Copy } from "lucide-react";
+import { Trash2, Download, Upload, Edit, Copy, Tag, CalendarRange, Link2 } from "lucide-react";
 
 interface BulkActionsToolbarProps {
   selectedCount: number;
@@ -8,6 +8,9 @@ interface BulkActionsToolbarProps {
   onExport: () => void;
   onImport: () => void;
   onBulkCopyToGrade: () => void;
+  onAssignUnit: () => void;
+  onShiftWeeks: () => void;
+  onAddResource: () => void;
 }
 
 export function BulkActionsToolbar({
@@ -17,6 +20,9 @@ export function BulkActionsToolbar({
   onExport,
   onImport,
   onBulkCopyToGrade,
+  onAssignUnit,
+  onShiftWeeks,
+  onAddResource,
 }: BulkActionsToolbarProps) {
   if (selectedCount === 0) return null;
 
@@ -28,7 +34,10 @@ export function BulkActionsToolbar({
         </span>
         <span>item{selectedCount !== 1 ? "s" : ""} selected</span>
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={onAssignUnit}><Tag className="mr-2 h-4 w-4" />Assign Unit</Button>
+        <Button variant="outline" size="sm" onClick={onShiftWeeks}><CalendarRange className="mr-2 h-4 w-4" />Shift Dates</Button>
+        <Button variant="outline" size="sm" onClick={onAddResource}><Link2 className="mr-2 h-4 w-4" />Add Resource</Button>
         <Button variant="outline" size="sm" onClick={onBulkEdit} className="shadow-sm hover:shadow-md border-2">
           <Edit className="h-4 w-4 mr-2" />
           Bulk Edit
@@ -53,4 +62,3 @@ export function BulkActionsToolbar({
     </div>
   );
 }
-

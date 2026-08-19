@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -33,6 +33,8 @@ import {
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string(),
+  unit: z.string(),
+  objectives: z.array(z.string()),
   lessonDate: z.string().min(1, "Lesson date is required"),
   week: z.number().min(1).max(52),
   grade: z.number().min(1).max(6).refine((val): val is GradeLevel => val >= 1 && val <= 6, {
@@ -57,12 +59,28 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+interface LessonTemplate {
+  id: string;
+  name: string;
+  description: string;
+  unit: string;
+  objectives: string[];
+  topics: Topic[];
+  resources: Resource[];
+}
+
+const TEMPLATE_STORAGE_KEY = "curriculum-lesson-templates";
+
 interface CurriculumFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: FormValues) => void;
+  onSubmit: (data: FormValues) => void | boolean | Promise<void | boolean>;
   initialData?: CurriculumItem;
   schoolYear: number;
+  defaultGrade?: GradeLevel;
+  defaultLessonDate?: string;
+  defaultUnit?: string;
+  defaultTemplateId?: string;
 }
 
 export function CurriculumForm({
@@ -71,11 +89,18 @@ export function CurriculumForm({
   onSubmit,
   initialData,
   schoolYear,
+  defaultGrade,
+  defaultLessonDate,
+  defaultUnit,
+  defaultTemplateId,
 }: CurriculumFormProps) {
+  const [templates, setTemplates] = useState<LessonTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [objectivesText, setObjectivesText] = useState("");
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
     setValue,
     watch,
     reset,
@@ -84,6 +109,8 @@ export function CurriculumForm({
     defaultValues: {
       title: "",
       description: "",
+      unit: "",
+      objectives: [],
       lessonDate: getApproxLessonDateFromWeek(1, schoolYear),
       week: 1,
       grade: 1,
@@ -97,10 +124,22 @@ export function CurriculumForm({
   const lessonDate = watch("lessonDate");
 
   useEffect(() => {
+    try {
+      const stored = localStorage.getItem(TEMPLATE_STORAGE_KEY);
+      setTemplates(stored ? JSON.parse(stored) : []);
+    } catch {
+      setTemplates([]);
+    }
+  }, [open]);
+
+  useEffect(() => {
     if (initialData) {
+      setObjectivesText((initialData.objectives || []).join("\n"));
       reset({
         title: initialData.title,
         description: initialData.description,
+        unit: initialData.unit || "",
+        objectives: initialData.objectives || [],
         lessonDate:
           initialData.lessonDate || getApproxLessonDateFromWeek(initialData.week, schoolYear),
         week: initialData.week,
@@ -109,17 +148,20 @@ export function CurriculumForm({
         resources: initialData.resources,
       });
     } else {
+      setObjectivesText("");
       reset({
         title: "",
         description: "",
-        lessonDate: getApproxLessonDateFromWeek(1, schoolYear),
-        week: 1,
-        grade: 1,
+        unit: defaultUnit || "",
+        objectives: [],
+        lessonDate: defaultLessonDate || getApproxLessonDateFromWeek(1, schoolYear),
+        week: defaultLessonDate ? getWeekFromLessonDate(defaultLessonDate, schoolYear) : 1,
+        grade: defaultGrade || 1,
         topics: [],
         resources: [],
       });
     }
-  }, [initialData, open, reset, schoolYear]);
+  }, [defaultGrade, defaultLessonDate, defaultUnit, initialData, open, reset, schoolYear]);
 
   useEffect(() => {
     if (!lessonDate) return;
@@ -166,26 +208,113 @@ export function CurriculumForm({
     setValue("resources", resources.filter((_, i) => i !== index));
   };
 
-  const onFormSubmit = (data: FormValues) => {
-    onSubmit(data);
+  const onFormSubmit = async (data: FormValues) => {
+    const result = await onSubmit(data);
+    if (result === false) return;
+    reset(data);
     onOpenChange(false);
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && isDirty && !window.confirm("Discard your unsaved lesson changes?")) {
+      return;
+    }
+    onOpenChange(nextOpen);
+  };
+
+  useEffect(() => {
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!open || !isDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isDirty, open]);
+
+  const saveAsTemplate = () => {
+    const title = watch("title").trim();
+    if (!title) return;
+
+    const template: LessonTemplate = {
+      id: crypto.randomUUID(),
+      name: title,
+      description: watch("description"),
+      unit: watch("unit"),
+      objectives: watch("objectives"),
+      topics: watch("topics"),
+      resources: watch("resources"),
+    };
+    const next = [...templates, template];
+    setTemplates(next);
+    setSelectedTemplateId(template.id);
+    localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(next));
+  };
+
+  const applyTemplate = useCallback((templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const template = templates.find((entry) => entry.id === templateId);
+    if (!template) return;
+
+    setValue("title", template.name, { shouldDirty: true });
+    setValue("description", template.description, { shouldDirty: true });
+    setValue("unit", template.unit, { shouldDirty: true });
+    setValue("objectives", template.objectives, { shouldDirty: true });
+    setObjectivesText(template.objectives.join("\n"));
+    setValue("topics", template.topics, { shouldDirty: true });
+    setValue("resources", template.resources, { shouldDirty: true });
+  }, [setValue, templates]);
+
+  useEffect(() => {
+    if (open && defaultTemplateId && templates.some((template) => template.id === defaultTemplateId)) {
+      applyTemplate(defaultTemplateId);
+    }
+  }, [applyTemplate, defaultTemplateId, open, templates]);
+
+  const deleteSelectedTemplate = () => {
+    if (!selectedTemplateId) return;
+    const next = templates.filter((template) => template.id !== selectedTemplateId);
+    setTemplates(next);
+    setSelectedTemplateId("");
+    localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(next));
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {initialData ? "Edit Curriculum Item" : "Add Curriculum Item"}
+            {initialData ? "Edit Lesson" : "Add Lesson"}
           </DialogTitle>
           <DialogDescription>
             {initialData
-              ? "Update the curriculum item details below."
-              : "Fill in the details to add a new curriculum item."}
+              ? "Update the lesson details below."
+              : "Add the schedule, topics, and resources for this lesson."}
           </DialogDescription>
         </DialogHeader>
+        <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <Label htmlFor="lesson-template">Lesson template</Label>
+            <Select value={selectedTemplateId} onValueChange={applyTemplate}>
+              <SelectTrigger id="lesson-template">
+                <SelectValue placeholder={templates.length ? "Choose a saved template" : "No templates saved"} />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map((template) => (
+                  <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button type="button" variant="outline" onClick={saveAsTemplate} disabled={!watch("title").trim()}>
+            Save as Template
+          </Button>
+          <Button type="button" variant="ghost" onClick={deleteSelectedTemplate} disabled={!selectedTemplateId}>
+            Delete Template
+          </Button>
+        </div>
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <Label htmlFor="title">Title *</Label>
               <Input
@@ -241,29 +370,15 @@ export function CurriculumForm({
               )}
             </div>
             <div>
-              <Label htmlFor="week">Week *</Label>
-              <Select
-                value={watch("week").toString()}
-                onValueChange={(value) => setValue("week", parseInt(value), { shouldDirty: true, shouldValidate: true })}
-              >
-                <SelectTrigger id="week">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 52 }, (_, i) => i + 1).map((week) => (
-                    <SelectItem key={week} value={week.toString()}>
-                      Week {week}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="week">School Week</Label>
+              <Input id="week" value={`Week ${watch("week")}`} readOnly className="bg-muted" />
               {errors.week && (
                 <p className="text-sm text-destructive mt-1">
                   {errors.week.message}
                 </p>
               )}
               <p className="text-xs text-muted-foreground mt-1">
-                Week is auto-derived from the lesson date for compatibility.
+                Automatically calculated from the lesson date.
               </p>
             </div>
           </div>
@@ -276,6 +391,37 @@ export function CurriculumForm({
               placeholder="Optional description of the curriculum item"
               rows={3}
             />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="unit">Unit</Label>
+              <Input
+                id="unit"
+                {...register("unit")}
+                placeholder="e.g., Digital Citizenship"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Use the same unit name to group related lessons.
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="objectives">Learning Objectives</Label>
+              <Textarea
+                id="objectives"
+                value={objectivesText}
+                onChange={(event) => {
+                  setObjectivesText(event.target.value);
+                  setValue(
+                    "objectives",
+                    event.target.value.split("\n").map((value) => value.trim()).filter(Boolean),
+                    { shouldDirty: true }
+                  );
+                }}
+                placeholder={"One objective per line\nStudents will be able to..."}
+                rows={4}
+              />
+            </div>
           </div>
 
           <div>
@@ -331,9 +477,9 @@ export function CurriculumForm({
                 {resources.map((resource, index) => (
                   <div
                     key={index}
-                    className="flex gap-3 rounded-lg border p-4"
+                    className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row"
                   >
-                    <div className="flex-1 grid grid-cols-3 gap-3">
+                    <div className="grid flex-1 gap-3 sm:grid-cols-3">
                       <div>
                         <Label htmlFor={`resource-name-${index}`}>Name *</Label>
                         <Input
@@ -405,7 +551,7 @@ export function CurriculumForm({
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
             >
               Cancel
             </Button>
@@ -418,4 +564,3 @@ export function CurriculumForm({
     </Dialog>
   );
 }
-

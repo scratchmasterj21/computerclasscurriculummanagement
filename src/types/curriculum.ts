@@ -20,6 +20,8 @@ export interface CurriculumItem {
   id: string;
   title: string;
   description: string;
+  unit?: string;
+  objectives?: string[];
   lessonDate?: string; // YYYY-MM-DD
   week: number; // 1-52
   grade: GradeLevel; // 1-6
@@ -33,10 +35,11 @@ export interface CurriculumItem {
 export interface CurriculumItemInput {
   title: string;
   description: string;
+  unit: string;
+  objectives: string[];
   lessonDate: string;
   week: number;
   grade: GradeLevel;
   topics: Topic[];
   resources: Resource[];
 }
-
