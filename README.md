@@ -92,7 +92,7 @@ Add these rules to your Firebase Realtime Database:
               ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 52"
             },
             "grade": {
-              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 6 && newData.val() == $grade"
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 6 && newData.val() + '' === $grade"
             },
             "topics": {
               ".validate": "newData.hasChildren() || newData.val() == null"
